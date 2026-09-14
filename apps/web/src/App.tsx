@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { api } from './api';
 import { AdminPage } from './pages/AdminPage';
+import { AdminUserViewPage } from './pages/AdminUserViewPage';
 import { AuthPage } from './pages/AuthPage';
 import { CategoriesPage } from './pages/CategoriesPage';
 import { HomePage } from './pages/HomePage';
@@ -10,7 +11,7 @@ import { StatsPage } from './pages/StatsPage';
 import { TransactionsPage } from './pages/TransactionsPage';
 import type { User } from './types';
 
-type Page = 'home' | 'transactions' | 'stats' | 'categories' | 'import' | 'settings' | 'admin';
+type Page = 'home' | 'transactions' | 'stats' | 'categories' | 'import' | 'settings' | 'user-view' | 'admin';
 
 const navigation: Array<{ page: Page; label: string; icon: string }> = [
   { page: 'home', label: '首页', icon: '⌂' },
@@ -44,16 +45,17 @@ export function App() {
     categories: <CategoriesPage />,
     import: <ImportPage />,
     settings: <SettingsPage onDeleted={() => setUser(null)} />,
+    'user-view': <AdminUserViewPage />,
     admin: <AdminPage />,
   };
 
   return <div className="app-shell">
     <aside className="sidebar">
       <div className="brand"><div className="brand-mark small">账</div><div><strong>轻账本</strong><span>Financial Ledger</span></div></div>
-      <nav>{navigation.map((item) => <button key={item.page} className={page === item.page ? 'nav-item active' : 'nav-item'} onClick={() => setPage(item.page)}><span>{item.icon}</span>{item.label}</button>)}{user.role === 'admin' && <button className={page === 'admin' ? 'nav-item active' : 'nav-item'} onClick={() => setPage('admin')}><span>⌘</span>管理后台</button>}</nav>
+      <nav>{navigation.map((item) => <button key={item.page} className={page === item.page ? 'nav-item active' : 'nav-item'} onClick={() => setPage(item.page)}><span>{item.icon}</span>{item.label}</button>)}{user.role === 'admin' && <><button className={page === 'user-view' ? 'nav-item active' : 'nav-item'} onClick={() => setPage('user-view')}><span>◉</span>用户视图</button><button className={page === 'admin' ? 'nav-item active' : 'nav-item'} onClick={() => setPage('admin')}><span>⌘</span>管理后台</button></>}</nav>
       <div className="sidebar-user"><div><strong>{user.username}</strong><span>{user.role === 'admin' ? '管理员' : user.email || '普通用户'}</span></div><button className="text-button" onClick={() => void logout()}>退出</button></div>
     </aside>
     <main className="content"><header className="mobile-header"><div className="brand"><div className="brand-mark small">账</div><strong>轻账本</strong></div><button className="text-button" onClick={() => void logout()}>退出</button></header><div className="content-inner">{pages[page]}</div></main>
-    <nav className="bottom-nav">{navigation.slice(0, 5).map((item) => <button key={item.page} className={page === item.page ? 'active' : ''} onClick={() => setPage(item.page)}><span>{item.icon}</span><small>{item.label}</small></button>)}<button className={page === (user.role === 'admin' ? 'admin' : 'settings') ? 'active' : ''} onClick={() => setPage(user.role === 'admin' ? 'admin' : 'settings')}><span>{user.role === 'admin' ? '⌘' : '⚙'}</span><small>{user.role === 'admin' ? '管理' : '设置'}</small></button></nav>
+    <nav className={user.role === 'admin' ? 'bottom-nav admin-nav' : 'bottom-nav'}>{navigation.slice(0, 5).map((item) => <button key={item.page} className={page === item.page ? 'active' : ''} onClick={() => setPage(item.page)}><span>{item.icon}</span><small>{item.label}</small></button>)}{user.role === 'admin' ? <><button className={page === 'user-view' ? 'active' : ''} onClick={() => setPage('user-view')}><span>◉</span><small>用户</small></button><button className={page === 'admin' ? 'active' : ''} onClick={() => setPage('admin')}><span>⌘</span><small>管理</small></button></> : <button className={page === 'settings' ? 'active' : ''} onClick={() => setPage('settings')}><span>⚙</span><small>设置</small></button>}</nav>
   </div>;
 }

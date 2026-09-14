@@ -15,6 +15,7 @@ import {
   setUserStatus,
   updateUserPassword,
 } from '@financial/database';
+import { epochMsToShanghaiDateTime, formatFenToCny } from '@financial/domain';
 import type { AppState } from '../runtime.js';
 import { hashPassword, requireAdmin, verifyPassword } from '../security.js';
 import type { BackupService } from '../backup.js';
@@ -28,6 +29,14 @@ function publicUser(user: NonNullable<ReturnType<typeof getUserById>>) {
     status: user.status,
     mustChangePassword: user.mustChangePassword,
     createdAt: user.createdAt,
+  };
+}
+
+function serializeTransaction(transaction: ReturnType<typeof listTransactions>['items'][number]) {
+  return {
+    ...transaction,
+    amount: formatFenToCny(transaction.amountFen),
+    occurredAtLocal: epochMsToShanghaiDateTime(transaction.occurredAt),
   };
 }
 
@@ -46,7 +55,8 @@ export function registerAdminRoutes(app: FastifyInstance, state: AppState, backu
     if (!params.success || !query.success) return reply.code(400).send({ error: 'INVALID_INPUT' });
     const target = getUserById(state.database.current, params.data.id);
     if (!target) return reply.code(404).send({ error: 'NOT_FOUND' });
-    return listTransactions(state.database.current, target.id, query.data);
+    const result = listTransactions(state.database.current, target.id, query.data);
+    return { ...result, items: result.items.map(serializeTransaction) };
   });
 
   app.post('/api/admin/users/:id/reset-password', async (request, reply) => {

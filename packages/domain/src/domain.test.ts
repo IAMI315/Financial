@@ -33,9 +33,9 @@ describe('identity rules', () => {
     expect(isValidUsername('ab')).toBe(false);
   });
 
-  it('requires at least ten unicode characters for passwords', () => {
-    expect(isValidPasswordLength('1234567890')).toBe(true);
-    expect(isValidPasswordLength('123456789')).toBe(false);
+  it('requires at least seven unicode characters for passwords', () => {
+    expect(isValidPasswordLength('1234567')).toBe(true);
+    expect(isValidPasswordLength('123456')).toBe(false);
   });
 });
 

@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { api, download, shanghaiNowLocal } from '../api';
+import { MonthlyTransactionTables } from '../components/MonthlyTransactionTables';
 import type { Category, Transaction, TransactionType } from '../types';
 
 type TransactionList = {
@@ -21,25 +22,31 @@ type EditState = {
 
 export function TransactionsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
-  const [result, setResult] = useState<TransactionList>({ items: [], total: 0, page: 1, pageSize: 20 });
+  const [result, setResult] = useState<TransactionList>({ items: [], total: 0, page: 1, pageSize: 100 });
   const [filters, setFilters] = useState({ from: '', to: '', type: '', categoryId: '', subcategoryId: '', keyword: '' });
-  const [page, setPage] = useState(1);
   const [edit, setEdit] = useState<EditState | null>(null);
   const [message, setMessage] = useState('');
 
   const search = useMemo(() => {
-    const params = new URLSearchParams({ page: String(page), pageSize: '20' });
+    const params = new URLSearchParams();
     Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); });
     return params.toString();
-  }, [filters, page]);
+  }, [filters]);
 
   async function load() {
-    const [categoryResult, transactionResult] = await Promise.all([
+    const prefix = search ? `${search}&` : '';
+    const [categoryResult, firstPage] = await Promise.all([
       api<{ categories: Category[] }>('/api/categories'),
-      api<TransactionList>(`/api/transactions?${search}`),
+      api<TransactionList>(`/api/transactions?${prefix}page=1&pageSize=100`),
     ]);
+    const totalPages = Math.ceil(firstPage.total / firstPage.pageSize);
+    const remainingPages = totalPages > 1
+      ? await Promise.all(Array.from({ length: totalPages - 1 }, (_, index) =>
+          api<TransactionList>(`/api/transactions?${prefix}page=${index + 2}&pageSize=100`),
+        ))
+      : [];
     setCategories(categoryResult.categories);
-    setResult(transactionResult);
+    setResult({ ...firstPage, items: firstPage.items.concat(...remainingPages.map((pageResult) => pageResult.items)) });
   }
 
   useEffect(() => { void load(); }, [search]);
@@ -51,7 +58,6 @@ export function TransactionsPage() {
 
   function updateFilter(name: string, value: string) {
     setFilters((current) => ({ ...current, [name]: value, ...(name === 'type' ? { categoryId: '', subcategoryId: '' } : {}), ...(name === 'categoryId' ? { subcategoryId: '' } : {}) }));
-    setPage(1);
   }
 
   async function saveEdit() {
@@ -101,17 +107,11 @@ export function TransactionsPage() {
       <section className="panel">
         <div className="panel-title"><div><span className="eyebrow">结果</span><h2>{result.total} 笔交易</h2></div></div>
         {message && <div className="notice">{message}</div>}
-        <div className="transaction-list">
-          {result.items.map((item) => (
-            <div className="transaction-row roomy" key={item.id}>
-              <div><strong>{item.subcategoryName || item.categoryName}</strong><span>{item.occurredAtLocal.replace('T', ' ')}{item.note ? ` · ${item.note}` : ''}</span></div>
-              <b className={item.type}>{item.type === 'expense' ? '-' : '+'}¥{item.amount}</b>
-              <div className="row-actions"><button className="text-button" onClick={() => setEdit({ id: item.id, type: item.type, amount: item.amount, categoryId: item.categoryId, subcategoryId: item.subcategoryId ?? '', occurredAtLocal: item.occurredAtLocal, note: item.note ?? '' })}>编辑</button><button className="text-button danger" onClick={() => void remove(item)}>删除</button></div>
-            </div>
-          ))}
-          {result.items.length === 0 && <p className="empty">没有符合条件的交易。</p>}
-        </div>
-        <div className="pagination"><button disabled={page <= 1} onClick={() => setPage((value) => value - 1)}>上一页</button><span>第 {page} 页</span><button disabled={page * result.pageSize >= result.total} onClick={() => setPage((value) => value + 1)}>下一页</button></div>
+        <MonthlyTransactionTables
+          items={result.items}
+          onEdit={(item) => setEdit({ id: item.id, type: item.type, amount: item.amount, categoryId: item.categoryId, subcategoryId: item.subcategoryId ?? '', occurredAtLocal: item.occurredAtLocal, note: item.note ?? '' })}
+          onDelete={(item) => void remove(item)}
+        />
       </section>
 
       {edit && (

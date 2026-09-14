@@ -100,6 +100,9 @@ describe('V1 security boundaries', () => {
     const readOnly = await app.inject({ method: 'GET', url: `/api/admin/users/${ownerId}/transactions`, headers: { cookie: admin } });
     expect(readOnly.statusCode).toBe(200);
     expect(readOnly.json().items.some((item: { id: number }) => item.id === id)).toBe(true);
+    const serialized = readOnly.json().items.find((item: { id: number }) => item.id === id);
+    expect(serialized.amount).toBe('16.00');
+    expect(serialized.occurredAtLocal).toBe('2026-04-02T08:00:00');
 
     const adminWrite = await app.inject({
       method: 'PUT',
@@ -124,6 +127,23 @@ describe('V1 security boundaries', () => {
     expect((await app.inject({ method: 'GET', url: '/api/me', headers: { cookie: second } })).statusCode).toBe(401);
     expect((await app.inject({ method: 'POST', url: '/api/auth/login', payload: { login: 'PasswordSessionUser', password: 'password-12345' } })).statusCode).toBe(401);
     expect((await app.inject({ method: 'POST', url: '/api/auth/login', payload: { login: 'PasswordSessionUser', password: 'new-password-67890' } })).statusCode).toBe(200);
+  });
+
+  it('accepts seven-character passwords and rejects shorter passwords', async () => {
+    const accepted = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { username: 'SevenPass', password: '1234567' },
+    });
+    expect(accepted.statusCode).toBe(201);
+
+    const rejected = await app.inject({
+      method: 'POST',
+      url: '/api/auth/register',
+      payload: { username: 'SixPass', password: '123456' },
+    });
+    expect(rejected.statusCode).toBe(400);
+    expect(rejected.json().message).toContain('7');
   });
 
   it('enforces login rate limiting and transaction input boundaries', async () => {

@@ -12,11 +12,11 @@ export function normalizeUsername(username: string): string {
 }
 
 export function isValidPasswordLength(password: string): boolean {
-  return Array.from(password).length >= 10;
+  return Array.from(password).length >= 7;
 }
 
 export function assertValidPasswordLength(password: string): void {
   if (!isValidPasswordLength(password)) {
-    throw new RangeError('密码至少需要 10 个字符');
+    throw new RangeError('密码至少需要 7 个字符');
   }
 }

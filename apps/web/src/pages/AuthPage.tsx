@@ -51,7 +51,7 @@ export function AuthPage({ onAuthenticated }: { onAuthenticated: (user: User) =>
               <label>邮箱（可选）<input name="email" type="email" autoComplete="email" /></label>
             </>
           )}
-          <label>密码<input name="password" type="password" minLength={10} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required /></label>
+          <label>密码<input name="password" type="password" minLength={7} autoComplete={mode === 'login' ? 'current-password' : 'new-password'} required /></label>
           {error && <div className="notice error">{error}</div>}
           <button className="primary" disabled={busy}>{busy ? '处理中…' : mode === 'login' ? '登录' : '创建账号'}</button>
         </form>

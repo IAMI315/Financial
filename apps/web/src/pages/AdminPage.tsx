@@ -1,13 +1,11 @@
 import { useEffect, useState } from 'react';
-import { api, download, money } from '../api';
-import type { AdminStatus, BackupInfo, Transaction, User } from '../types';
+import { api, download } from '../api';
+import type { AdminStatus, BackupInfo, User } from '../types';
 
 export function AdminPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [status, setStatus] = useState<AdminStatus | null>(null);
   const [backups, setBackups] = useState<BackupInfo[]>([]);
-  const [selectedTransactions, setSelectedTransactions] = useState<Transaction[]>([]);
-  const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [message, setMessage] = useState('');
 
   async function load() {
@@ -19,11 +17,6 @@ export function AdminPage() {
     setUsers(userResult.users); setStatus(statusResult); setBackups(backupResult.backups);
   }
   useEffect(() => { void load(); }, []);
-
-  async function showTransactions(user: User) {
-    const result = await api<{ items: Transaction[] }>(`/api/admin/users/${user.id}/transactions?page=1&pageSize=100`);
-    setSelectedUser(user); setSelectedTransactions(result.items);
-  }
 
   async function toggleUser(user: User) {
     await api(`/api/admin/users/${user.id}/status`, { method: 'PATCH', body: { status: user.status === 'active' ? 'disabled' : 'active' } });
@@ -71,8 +64,7 @@ export function AdminPage() {
     {message && <div className="notice">{message}</div>}
     <section className="summary-grid admin-metrics"><article className="metric"><span>用户</span><strong>{status?.users ?? 0}</strong></article><article className="metric"><span>交易</span><strong>{status?.transactions ?? 0}</strong></article><article className="metric"><span>数据库</span><strong>{status ? `${(status.databaseSize / 1024 / 1024).toFixed(1)} MB` : '—'}</strong></article><article className="metric"><span>备份</span><strong>{status?.backupCount ?? 0}</strong></article></section>
     <section className="panel"><div className="panel-title"><div><span className="eyebrow">系统</span><h2>运行状态</h2></div><label className="switch-line"><input type="checkbox" checked={status?.registrationOpen ?? false} onChange={async (event) => { await api('/api/admin/settings/registration', { method: 'PUT', body: { open: event.target.checked } }); await load(); }} />开放注册</label></div><div className="status-grid"><span>版本 <b>{status?.appVersion ?? '—'}</b></span><span>数据库 <b>{status?.database ?? '—'}</b></span><span>最近自动备份 <b>{status?.latestAutomaticBackup ? new Date(status.latestAutomaticBackup).toLocaleString('zh-CN') : '暂无'}</b></span><span>维护模式 <b>{status?.maintenance ? '是' : '否'}</b></span></div></section>
-    <section className="panel"><div className="panel-title"><div><span className="eyebrow">账号管理</span><h2>用户列表</h2></div></div><div className="admin-users">{users.map((user) => <div className="admin-user" key={user.id}><div><strong>{user.username}{user.role === 'admin' ? ' · 管理员' : ''}</strong><span>{user.email || '未填写邮箱'} · {user.status === 'active' ? '启用' : '禁用'}</span></div>{user.role !== 'admin' && <div className="row-actions"><button className="text-button" onClick={() => void showTransactions(user)}>只读账目</button><button className="text-button" onClick={() => void resetPassword(user)}>重置密码</button><button className="text-button" onClick={() => void toggleUser(user)}>{user.status === 'active' ? '禁用' : '启用'}</button><button className="text-button danger" onClick={() => void deleteUser(user)}>永久删除</button></div>}</div>)}</div></section>
+    <section className="panel"><div className="panel-title"><div><span className="eyebrow">账号管理</span><h2>用户列表</h2></div></div><p className="muted">查看普通用户流水请使用左侧“用户视图”；这里仅处理账号状态、密码重置和永久删除。</p><div className="admin-users">{users.map((user) => <div className="admin-user" key={user.id}><div><strong>{user.username}{user.role === 'admin' ? ' · 管理员' : ''}</strong><span>{user.email || '未填写邮箱'} · {user.status === 'active' ? '启用' : '禁用'}</span></div>{user.role !== 'admin' && <div className="row-actions"><button className="text-button" onClick={() => void resetPassword(user)}>重置密码</button><button className="text-button" onClick={() => void toggleUser(user)}>{user.status === 'active' ? '禁用' : '启用'}</button><button className="text-button danger" onClick={() => void deleteUser(user)}>永久删除</button></div>}</div>)}</div></section>
     <section className="panel"><div className="panel-title"><div><span className="eyebrow">数据保护</span><h2>本机备份与整库恢复</h2></div><div className="row-actions"><button className="secondary" onClick={() => void createBackup()}>立即备份</button><label className="secondary file-button">上传并恢复<input type="file" accept=".flb" onChange={(event) => void restoreBackup(event.target.files?.[0])} /></label></div></div><p className="muted">自动保留 7 个日备份、4 个周备份和 6 个月度备份。网页数据备份只包含业务数据库，不包含 .env、Caddy 或 Compose 配置。</p><div className="backup-list">{backups.map((backup) => <div className="backup-row" key={backup.name}><div><strong>{backup.name}</strong><span>{new Date(backup.modifiedAt).toLocaleString('zh-CN')} · {(backup.size / 1024 / 1024).toFixed(2)} MB</span></div><button className="text-button" onClick={() => void download(`/api/admin/backups/${encodeURIComponent(backup.name)}`, backup.name)}>下载</button></div>)}{backups.length === 0 && <p className="empty">暂无备份。</p>}</div></section>
-    {selectedUser && <div className="modal-backdrop" onMouseDown={() => setSelectedUser(null)}><section className="modal wide-modal" onMouseDown={(event) => event.stopPropagation()}><div className="panel-title"><div><span className="eyebrow">只读</span><h2>{selectedUser.username} 的最近流水</h2></div><button className="icon-button" onClick={() => setSelectedUser(null)}>×</button></div><div className="transaction-list">{selectedTransactions.map((item) => <div className="transaction-row" key={item.id}><div><strong>{item.categoryName}</strong><span>{new Date(item.occurredAt).toLocaleString('zh-CN')}</span></div><b className={item.type}>{item.type === 'expense' ? '-' : '+'}{money(item.amountFen)}</b></div>)}{selectedTransactions.length === 0 && <p className="empty">暂无交易。</p>}</div><p className="muted">管理员在此仅能查看，不能修改或删除普通用户单笔交易。</p></section></div>}
   </div>;
 }

@@ -110,6 +110,35 @@ details textarea { margin-top: 8px; }
 .transaction-row b { font-size: 14px; white-space: nowrap; }
 .transaction-row b.expense { color: var(--expense); }
 .transaction-row b.income { color: var(--income); }
+.monthly-ledgers { display: grid; gap: 18px; }
+.month-ledger { overflow: hidden; border: 1px solid var(--border); border-radius: 16px; background: #fff; }
+.month-ledger-title { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); background: #f8faff; padding: 14px 16px; }
+.month-ledger-title h3 { margin: 2px 0 0; color: #27344c; font-size: 18px; }
+.month-ledger-title > span { color: var(--muted); font-size: 12px; }
+.ledger-table-wrap { overflow-x: auto; }
+.ledger-table { width: 100%; min-width: 760px; border-collapse: collapse; }
+.ledger-table th, .ledger-table td { border-bottom: 1px solid #edf0f4; padding: 11px 14px; text-align: left; vertical-align: middle; }
+.ledger-table th { background: #fbfcfe; color: #788398; font-size: 11px; font-weight: 800; letter-spacing: .04em; }
+.ledger-table tbody tr:last-child td { border-bottom: 0; }
+.ledger-table tbody tr:hover { background: #fbfcff; }
+.ledger-table td { color: #3f4a5f; font-size: 13px; }
+.ledger-table .time-cell { color: #657187; white-space: nowrap; }
+.ledger-table .note-cell { max-width: 280px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ledger-table .amount-cell { text-align: right; white-space: nowrap; }
+.ledger-table .actions-cell { width: 110px; text-align: right; white-space: nowrap; }
+.transaction-amount { font-weight: 800; }
+.transaction-amount.expense { color: var(--expense); }
+.transaction-amount.income { color: var(--income); }
+.subcategory-text { color: var(--muted); font-size: 12px; }
+.type-pill { display: inline-flex; align-items: center; border-radius: 999px; padding: 4px 8px; font-size: 11px; font-weight: 750; }
+.type-pill.expense { background: #fff0f2; color: var(--expense); }
+.type-pill.income { background: #eaf7f1; color: var(--income); }
+.table-actions { justify-content: flex-end; flex-wrap: nowrap; }
+.admin-user-view-toolbar { background: linear-gradient(145deg, #ffffff, #f7f9ff); }
+.user-view-selector { width: min(100%, 460px); }
+.user-status { display: inline-flex; border-radius: 999px; padding: 5px 9px; font-size: 11px; font-weight: 750; }
+.user-status.active { background: #eaf7f1; color: var(--income); }
+.user-status.disabled { background: #fff0f2; color: var(--danger); }
 .filter-grid, .mapping-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
 .inline-form { display: grid; grid-template-columns: 130px 210px minmax(160px, 1fr) auto; gap: 10px; align-items: end; }
 .pagination { display: flex; justify-content: center; align-items: center; gap: 12px; margin-top: 16px; }
@@ -171,6 +200,7 @@ details textarea { margin-top: 8px; }
   .mobile-header { position: sticky; z-index: 20; top: 0; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--border); background: rgba(251,252,254,.92); padding: 10px 16px; backdrop-filter: blur(18px); }
   .content-inner { padding: 16px; }
   .bottom-nav { position: fixed; z-index: 30; bottom: 0; left: 0; right: 0; display: grid; grid-template-columns: repeat(6, 1fr); border-top: 1px solid var(--border); background: rgba(255,255,255,.94); padding: 6px 3px max(6px, env(safe-area-inset-bottom)); backdrop-filter: blur(18px); }
+  .bottom-nav.admin-nav { grid-template-columns: repeat(7, 1fr); }
   .bottom-nav button { display: grid; place-items: center; gap: 1px; border: 0; background: transparent; color: #7b8495; font-size: 19px; }
   .bottom-nav button.active { color: #2c60c5; }
   .bottom-nav small { font-size: 9px; }
@@ -194,6 +224,9 @@ details textarea { margin-top: 8px; }
   .transaction-row.roomy .row-actions { grid-column: 1 / -1; }
   .stats-header { align-items: start; gap: 15px; }
   .stats-header label { width: 135px; }
+  .month-ledger { border-radius: 13px; }
+  .month-ledger-title { padding: 12px 13px; }
+  .ledger-table th, .ledger-table td { padding: 10px 11px; }
   .mapping-list label, .mapping-row { grid-template-columns: 1fr; border-bottom: 1px solid #edf0f4; padding: 10px 0; }
   .status-grid { grid-template-columns: 1fr; }
   .admin-user, .backup-row { align-items: flex-start; flex-direction: column; }
