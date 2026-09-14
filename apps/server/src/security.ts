@@ -37,22 +37,22 @@ export function newSessionToken(): { id: string; token: string; tokenHash: strin
   return { id: randomUUID(), token, tokenHash: hashSessionToken(token) };
 }
 
-export function setSessionCookie(reply: FastifyReply, token: string, production: boolean): void {
+export function setSessionCookie(reply: FastifyReply, token: string, secure: boolean): void {
   reply.setCookie(SESSION_COOKIE, token, {
     path: '/',
     httpOnly: true,
-    secure: production,
+    secure,
     sameSite: 'lax',
     expires: new Date('9999-12-31T23:59:59.000Z'),
     signed: true,
   });
 }
 
-export function clearSessionCookie(reply: FastifyReply, production: boolean): void {
+export function clearSessionCookie(reply: FastifyReply, secure: boolean): void {
   reply.clearCookie(SESSION_COOKIE, {
     path: '/',
     httpOnly: true,
-    secure: production,
+    secure,
     sameSite: 'lax',
   });
 }
@@ -80,7 +80,7 @@ export function getAuth(request: FastifyRequest, state: AppState): AuthContext |
 export function requireAuth(request: FastifyRequest, reply: FastifyReply, state: AppState): AuthContext | null {
   const auth = getAuth(request, state);
   if (!auth || auth.user.status !== 'active') {
-    clearSessionCookie(reply, state.config.nodeEnv === 'production');
+    clearSessionCookie(reply, state.config.cookieSecure);
     void reply.code(401).send({ error: 'UNAUTHENTICATED', message: '请先登录' });
     return null;
   }

@@ -5,7 +5,9 @@ import { loadConfig } from './config.js';
 describe('server port configuration', () => {
   it('defaults to 7001 and accepts a single PORT override', () => {
     expect(loadConfig({}).port).toBe(7001);
+    expect(loadConfig({}).cookieSecure).toBe(false);
     expect(loadConfig({ PORT: '8123' }).port).toBe(8123);
+    expect(loadConfig({ COOKIE_SECURE: 'true' }).cookieSecure).toBe(true);
   });
 });
 
@@ -41,6 +43,7 @@ describe('GET /healthz', () => {
     const setCookie = login.headers['set-cookie'];
     const rawCookie = Array.isArray(setCookie) ? setCookie[0] : setCookie;
     expect(rawCookie).toBeTypeOf('string');
+    expect(rawCookie).not.toContain('Secure');
     const cookie = rawCookie!.split(';')[0]!;
 
     const categories = await app.inject({

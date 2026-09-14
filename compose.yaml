@@ -11,8 +11,8 @@ services:
       BACKUP_DIR: /data/backups
     volumes:
       - ./data:/data
-    networks:
-      - ledger-internal
+    ports:
+      - '${PORT:-7001}:${PORT:-7001}/tcp'
     healthcheck:
       test:
         [
@@ -25,31 +25,3 @@ services:
       timeout: 5s
       retries: 3
       start_period: 15s
-
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    depends_on:
-      app:
-        condition: service_healthy
-    environment:
-      SITE_HOST: ${SITE_HOST}
-      PORT: ${PORT:-7001}
-    ports:
-      - '80:80'
-      - '443:443'
-      - '443:443/udp'
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    networks:
-      - ledger-internal
-
-networks:
-  ledger-internal:
-    driver: bridge
-
-volumes:
-  caddy_data:
-  caddy_config:

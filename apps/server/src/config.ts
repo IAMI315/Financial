@@ -16,6 +16,7 @@ const envSchema = z.object({
   ADMIN_USERNAME: z.string().min(3).default('admin'),
   ADMIN_PASSWORD: z.string().default(''),
   REGISTRATION_OPEN: z.enum(['true', 'false']).default('true'),
+  COOKIE_SECURE: z.enum(['true', 'false']).default('false'),
   PUBLIC_URL: z.string().url().optional(),
   APP_VERSION: z.string().min(1).default('0.1.0'),
 });
@@ -30,6 +31,7 @@ export type AppConfig = {
   adminUsername: string;
   adminPassword: string;
   registrationOpen: boolean;
+  cookieSecure: boolean;
   publicUrl?: string;
   appVersion: string;
 };
@@ -52,6 +54,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): AppConfig {
     adminUsername: parsed.ADMIN_USERNAME,
     adminPassword: parsed.ADMIN_PASSWORD,
     registrationOpen: parsed.REGISTRATION_OPEN === 'true',
+    cookieSecure: parsed.COOKIE_SECURE === 'true',
     ...(parsed.PUBLIC_URL ? { publicUrl: parsed.PUBLIC_URL } : {}),
     appVersion: parsed.APP_VERSION,
   };

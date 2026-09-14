@@ -79,7 +79,7 @@ export function registerAuthRoutes(app: FastifyInstance, state: AppState): void 
           return created;
         })();
         const session = createLoginSession(state, user.id);
-        setSessionCookie(reply, session.token, state.config.nodeEnv === 'production');
+        setSessionCookie(reply, session.token, state.config.cookieSecure);
         return reply.code(201).send({ user: publicUser(user) });
       } catch (error) {
         if (error instanceof Error && error.message.includes('UNIQUE')) {
@@ -112,7 +112,7 @@ export function registerAuthRoutes(app: FastifyInstance, state: AppState): void 
           temporaryPasswordExpiresAt: null,
         });
       }
-      setSessionCookie(reply, session.token, state.config.nodeEnv === 'production');
+      setSessionCookie(reply, session.token, state.config.cookieSecure);
       return { user: { ...publicUser(user), mustChangePassword: user.mustChangePassword } };
     },
   );
@@ -121,7 +121,7 @@ export function registerAuthRoutes(app: FastifyInstance, state: AppState): void 
     const auth = requireAuth(request, reply, state);
     if (!auth) return;
     revokeSession(state.database.current, auth.sessionId);
-    clearSessionCookie(reply, state.config.nodeEnv === 'production');
+    clearSessionCookie(reply, state.config.cookieSecure);
     return { ok: true };
   });
 
@@ -163,7 +163,7 @@ export function registerAuthRoutes(app: FastifyInstance, state: AppState): void 
       return reply.code(401).send({ error: 'INVALID_PASSWORD', message: '密码确认失败' });
     }
     deleteUser(state.database.current, auth.user.id);
-    clearSessionCookie(reply, state.config.nodeEnv === 'production');
+    clearSessionCookie(reply, state.config.cookieSecure);
     return reply.code(204).send();
   });
 }

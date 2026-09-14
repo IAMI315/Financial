@@ -1,6 +1,6 @@
 # 轻账本 / Financial Ledger
 
-一个自托管、多用户隔离的个人收支记账应用。V1 使用 React + Vite、Fastify、SQLite、Drizzle，并以 Docker Compose + Caddy 部署。
+一个自托管、多用户隔离的个人收支记账应用。V1 使用 React + Vite、Fastify、SQLite、Drizzle，并以 Docker Compose 直接提供 HTTP 服务。
 
 ## 本地开发
 
@@ -21,13 +21,13 @@ pnpm check
 ## 首次生产部署
 
 1. 将 `env.example` 复制为 `.env`。
-   - 项目默认端口为 `7001`。如需自定义，只修改 `.env` 中唯一的 `PORT=7001` 这一行；服务端、Docker 健康检查与 Caddy 上游会自动同步。
+   - 项目默认端口为 `7001`。如需自定义，只修改 `.env` 中唯一的 `PORT=7001` 这一行；服务端监听、Docker 端口映射和健康检查会自动同步。
 2. 生成至少 32 字符的随机 `APP_SECRET`。
 3. 设置初始 `ADMIN_USERNAME` / `ADMIN_PASSWORD`。管理员首次创建后，`.env` 中的初始密码不再决定真实登录密码。
-4. 将 `SITE_HOST` 设置为已经解析到 VPS 的域名。
-5. 默认将 `LEDGER_IMAGE` 设置为 `ghcr.io/iami315/financial:latest`，以便 VPS 始终拉取 `main` 最新成功构建；需要回滚时可临时改用保留的 `sha-xxxxxxx` 标签。
-6. 创建持久化目录并允许容器中的非 root 用户写入：`mkdir -p data && chown 1000:1000 data`。
-7. 运行 `docker compose pull && docker compose up -d`。
+4. 默认将 `LEDGER_IMAGE` 设置为 `ghcr.io/iami315/financial:latest`，以便 VPS 始终拉取 `main` 最新成功构建；需要回滚时可临时改用保留的 `sha-xxxxxxx` 标签。
+5. 创建持久化目录并允许容器中的非 root 用户写入：`mkdir -p data && chown 1000:1000 data`。
+6. 运行 `docker compose pull && docker compose up -d`。
+7. 直接访问 `http://<服务器IP>:7001`；如使用宝塔/Nginx/Cloudflare，在外层终止 HTTPS 并反向代理到 `http://127.0.0.1:7001`。
 8. 访问 `/healthz`，再登录管理员账号核对系统状态。
 
 ## GitHub Actions
@@ -45,7 +45,7 @@ docker compose up -d
 
 运行数据库位于 `/data/ledger.db`，系统使用 SQLite WAL。不要在应用运行时仅复制主数据库文件作为备份；请使用管理后台生成的一致性数据备份。
 
-网页数据备份只包含业务数据库，适用于产品内整库恢复。服务器迁移时还必须单独保存 `.env`、`compose.yaml`、`Caddyfile` 和 `data/`。
+网页数据备份只包含业务数据库，适用于产品内整库恢复。服务器迁移时还必须单独保存 `.env`、`compose.yaml` 和 `data/`。
 
 ## PWA
 

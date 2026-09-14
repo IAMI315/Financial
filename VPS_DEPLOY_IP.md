@@ -1,10 +1,12 @@
-# Financial Ledger — VPS IP + 端口部署任务书
+# Financial Ledger — VPS 纯 HTTP 部署任务书
 
-> 本文档的目标读者是运行在 VPS 上的 Codex。请按本文档直接执行部署，不需要等待用户逐步确认；只有遇到明确需要用户介入的事项时再停止并报告。
+> 本文档面向运行在 VPS 上的 Codex。请直接按本文档执行部署；只有需要用户介入（例如端口未放行、端口冲突、GHCR 权限问题）时再停止并报告。
 >
-> 当前阶段 **不使用域名**。部署完成后应能通过 `https://<VPS_IP>:<PORT>` 访问应用。
+> Financial Ledger 本身 **只提供 HTTP 服务**，不再内置 Caddy、TLS 或 HTTPS。默认通过 `http://<VPS_IP>:7001` 访问。
 >
-> **重要：不要擅自修改 VPS 防火墙、安全组或云厂商防火墙规则。** 如果目标端口没有放行，只完成本机部署并向用户报告需要开放的端口。
+> 若用户使用宝塔/Nginx/Cloudflare，请由外层代理负责 HTTPS，并反向代理到 `http://127.0.0.1:<PORT>`。
+>
+> **不要擅自修改 VPS 防火墙、安全组或云厂商防火墙规则。** 如果端口没有放行，只完成本机部署并向用户报告。
 
 ---
 
@@ -22,68 +24,74 @@ https://github.com/IAMI315/Financial.git
 ghcr.io/iami315/financial:latest
 ```
 
-推荐部署目录：
+推荐目录：
 
 ```text
 /opt/financial
 ```
 
-默认项目端口：
+默认端口：
 
 ```text
 7001/tcp
 ```
 
-项目端口只有一个配置入口：`.env`（由 `env.example` 复制而来）中的：
+项目端口只有一个配置入口：`.env` 中的：
 
 ```text
 PORT=7001
 ```
 
-如需自定义端口，只修改这一行，例如 `PORT=8123`；应用监听、Docker 健康检查、Caddy 反向代理和宿主机映射都会自动同步，不要再修改其他端口配置。
-
-最终访问地址：
+若用户需要自定义端口，只修改这一行，例如：
 
 ```text
-https://<VPS_PUBLIC_IP>:7001
+PORT=8123
 ```
 
-### 为什么使用 HTTPS 而不是 `http://IP:PORT`
+应用监听、Docker 端口映射和健康检查都会自动使用该端口，不要再修改其他文件中的端口配置。
 
-当前应用在 `NODE_ENV=production` 时会把登录 Session Cookie 标记为 `Secure`。因此生产构建若直接通过纯 HTTP 访问，登录态不能可靠工作。
+默认访问地址：
 
-本阶段使用 Caddy 的 `tls internal` 为 IP 地址提供临时 HTTPS。浏览器第一次访问时会因为证书来自 Caddy 内部 CA 而显示“不受信任”警告；这是无域名临时部署的预期行为。用户可在测试阶段手动继续访问。后续配置正式域名后再切换为公开受信任证书。
+```text
+http://<VPS_PUBLIC_IP>:7001
+```
 
----
+宝塔/Nginx 反向代理目标：
 
-## 2. Codex 执行原则
-
-执行本任务时遵循以下规则：
-
-1. 尽可能自动完成所有可安全完成的步骤。
-2. 不删除已有数据库、备份或其他未知业务数据。
-3. 不执行 `docker system prune -a` 等可能删除其他项目镜像/数据的高破坏性命令。
-4. 不修改 UFW、firewalld、iptables、nftables 或云厂商安全组。
-5. 不把 `.env`、数据库、管理员密码、GitHub Token 提交到 Git。
-6. 如果发现 `/opt/financial` 已存在旧部署，优先做无损升级；不要直接覆盖未知文件。
-7. 如果仓库存在未提交的 tracked 文件修改，不要执行 `git reset --hard`，停止代码更新并报告。
-8. 如果 GHCR 私有镜像无法拉取，不要在日志中打印 Token，向用户报告需要 `read:packages` 权限的 GitHub PAT。
-9. 部署结束前必须验证容器健康、HTTP API 健康检查以及本机 HTTPS 访问。
-10. 最后必须按本文档的“最终报告模板”向用户报告结果。
+```text
+http://127.0.0.1:7001
+```
 
 ---
 
-## 3. 检查当前系统
+## 2. 执行原则
 
-先记录系统信息：
+1. 不删除已有数据库、备份或未知业务数据。
+2. 不执行 `docker system prune -a`、`docker compose down -v` 等高破坏性命令。
+3. 不修改 UFW、firewalld、iptables、nftables 或云厂商安全组。
+4. 不把 `.env`、数据库、管理员密码、GitHub Token 提交到 Git。
+5. 已有部署优先无损升级。
+6. 如果 tracked 工作区有用户修改，不执行 `git reset --hard`，停止并报告。
+7. GHCR 拉取出现 `unauthorized` 时，不打印 Token；报告用户配置 `read:packages` 权限或将 Package 设为公开。
+8. 部署结束前必须验证容器状态、HTTP `/healthz` 和首页。
+9. 最终必须明确报告实际端口和防火墙状态。
+
+---
+
+## 3. 环境检查
 
 ```bash
 id
 uname -a
 cat /etc/os-release
+command -v git || true
+command -v curl || true
+command -v openssl || true
+command -v docker || true
+docker compose version || true
 ```
 
-检查是否具备 root 权限或 sudo：
+设置 sudo：
 
 ```bash
 if [ "$(id -u)" -eq 0 ]; then
@@ -96,120 +104,68 @@ else
 fi
 ```
 
-检查基础工具：
-
-```bash
-command -v git || true
-command -v curl || true
-command -v openssl || true
-command -v docker || true
-docker compose version || true
-```
-
-如果缺少 `git`、`curl`、`openssl`，Debian/Ubuntu 可执行：
+如果 Debian/Ubuntu 缺少基础工具：
 
 ```bash
 $SUDO apt-get update
 $SUDO apt-get install -y git curl ca-certificates openssl
 ```
 
----
-
-## 4. 安装 Docker（仅在未安装时）
-
-如果以下命令均成功：
-
-```bash
-docker --version
-docker compose version
-```
-
-则跳过本节。
-
-### Debian / Ubuntu
-
-先确认发行版：
-
-```bash
-. /etc/os-release
-echo "$ID $VERSION_CODENAME"
-```
-
-如果是 Debian 或 Ubuntu，可安装 Docker 官方软件源版本：
-
-```bash
-$SUDO install -m 0755 -d /etc/apt/keyrings
-curl -fsSL "https://download.docker.com/linux/${ID}/gpg" | $SUDO tee /etc/apt/keyrings/docker.asc >/dev/null
-$SUDO chmod a+r /etc/apt/keyrings/docker.asc
-
-ARCH="$(dpkg --print-architecture)"
-CODENAME="$(. /etc/os-release && echo "$VERSION_CODENAME")"
-
-cat <<EOF | $SUDO tee /etc/apt/sources.list.d/docker.sources >/dev/null
-Types: deb
-URIs: https://download.docker.com/linux/${ID}
-Suites: ${CODENAME}
-Components: stable
-Architectures: ${ARCH}
-Signed-By: /etc/apt/keyrings/docker.asc
-EOF
-
-$SUDO apt-get update
-$SUDO apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
-$SUDO systemctl enable --now docker
-```
-
-重新验证：
-
-```bash
-docker --version
-docker compose version
-```
-
-如果当前用户无权访问 Docker daemon，但 sudo 可用，后续 Docker 命令统一使用：
-
-```bash
-$SUDO docker ...
-```
-
-如果不是 Debian/Ubuntu 且 Docker 未安装：**不要猜测安装命令**。停止并向用户报告操作系统信息。
+如果 Docker 未安装，Debian/Ubuntu 使用 Docker 官方源安装。非 Debian/Ubuntu 不要猜测命令，应报告系统信息。
 
 ---
 
-## 5. 获取公网 IP
-
-优先从服务器外网接口获取：
+## 4. 准备代码
 
 ```bash
-VPS_IP="$(curl -4fsS --max-time 10 https://api.ipify.org || true)"
+$SUDO mkdir -p /opt/financial
+$SUDO chown "$(id -u):$(id -g)" /opt/financial
+cd /opt/financial
 ```
 
-如果为空，再尝试：
+首次部署：
 
 ```bash
-VPS_IP="$(curl -4fsS --max-time 10 https://ifconfig.me || true)"
+git clone https://github.com/IAMI315/Financial.git .
 ```
 
-输出：
+已有仓库：
 
 ```bash
-echo "VPS_IP=$VPS_IP"
+git status --short
+git diff --quiet && git diff --cached --quiet
 ```
 
-如果仍为空，不要终止整个部署。可以继续完成本机部署，但最终报告必须注明“无法自动识别公网 IP”，并让用户自行代入 VPS 公网 IP。
+若 tracked 文件有修改，停止更新并报告；否则：
+
+```bash
+git fetch origin
+git checkout main
+git pull --ff-only origin main
+```
+
+记录版本：
+
+```bash
+FULL_SHA="$(git rev-parse HEAD)"
+echo "FULL_SHA=$FULL_SHA"
+```
 
 ---
 
-## 6. 确认项目端口
+## 5. 配置端口
 
-默认项目端口为 `7001`。端口配置必须保持单一来源：最终 `.env` 中只通过 `PORT=<端口>` 控制整个项目。
-
-如果是已有部署，优先读取现有 `.env` 的端口；否则使用默认值：
+首次部署默认：
 
 ```bash
 PORT=7001
-if [ -f /opt/financial/.env ]; then
-  CONFIGURED_PORT="$(sed -n 's/^PORT=//p' /opt/financial/.env | tail -n 1)"
+```
+
+已有 `.env` 时优先读取已有值：
+
+```bash
+if [ -f .env ]; then
+  CONFIGURED_PORT="$(sed -n 's/^PORT=//p' .env | tail -n 1)"
   if [ -n "$CONFIGURED_PORT" ]; then
     PORT="$CONFIGURED_PORT"
   fi
@@ -218,28 +174,24 @@ fi
 echo "PORT=$PORT"
 ```
 
-检查端口是否被其他服务占用：
+检查端口：
 
 ```bash
 if ss -ltnH | awk '{print $4}' | grep -Eq "(^|:)${PORT}$"; then
-  echo "ERROR: 项目端口 ${PORT}/tcp 已被其他服务占用。"
+  echo "ERROR: ${PORT}/tcp 已被其他服务占用。"
   exit 1
 fi
 ```
 
-如果端口被占用，不要关闭其他服务，也不要擅自选择新端口。向用户报告冲突；用户若要改端口，只需修改 `.env`（首次部署则修改 `env.example` 后复制为 `.env`）中的一行，例如：
-
-```text
-PORT=8123
-```
+如果端口被占用，不关闭其他服务，也不自动换端口。向用户报告；用户只需在 `.env` 中修改 `PORT=`。
 
 ---
 
-## 7. 检查防火墙，但不要修改
+## 6. 检查防火墙（只检查，不修改）
 
-目标是判断 `$PORT/tcp` 是否可能被 VPS 本机防火墙阻断。
+目标端口为 `$PORT/tcp`。
 
-### UFW
+UFW：
 
 ```bash
 if command -v ufw >/dev/null 2>&1; then
@@ -247,9 +199,7 @@ if command -v ufw >/dev/null 2>&1; then
 fi
 ```
 
-如果 UFW 为 `Status: active`，检查是否有 `$PORT/tcp` 的 ALLOW 规则。
-
-### firewalld
+firewalld：
 
 ```bash
 if command -v firewall-cmd >/dev/null 2>&1; then
@@ -259,21 +209,18 @@ if command -v firewall-cmd >/dev/null 2>&1; then
 fi
 ```
 
-### nftables / iptables
-
-只查看，不修改：
+nftables / iptables：
 
 ```bash
 if command -v nft >/dev/null 2>&1; then
   $SUDO nft list ruleset || true
 fi
-
 if command -v iptables >/dev/null 2>&1; then
   $SUDO iptables -S || true
 fi
 ```
 
-将判断结果记录为下列之一：
+记录为：
 
 ```text
 FIREWALL_PORT_STATUS=OPEN
@@ -281,148 +228,20 @@ FIREWALL_PORT_STATUS=BLOCKED_OR_NOT_ALLOWED
 FIREWALL_PORT_STATUS=UNCERTAIN
 ```
 
-如果是 `BLOCKED_OR_NOT_ALLOWED` 或 `UNCERTAIN`：
-
-- **不要执行任何放行命令。**
-- 继续完成 Docker 部署。
-- 最终报告中明确告诉用户需要检查/放行 `$PORT/tcp`。
-
-云厂商安全组通常无法从 VPS 内部完整判断。如果本机服务正常但外部无法访问，也应在最终报告中提醒用户检查云厂商控制台中的入站规则。
+不要执行放行命令。若未明确开放，继续完成本机部署，最终报告用户需要开放的 TCP 端口。
 
 ---
 
-## 8. 准备部署目录和代码
-
-```bash
-$SUDO mkdir -p /opt/financial
-$SUDO chown "$(id -u):$(id -g)" /opt/financial
-cd /opt/financial
-```
+## 7. 创建或升级 `.env`
 
 ### 首次部署
-
-如果目录中不存在 `.git`：
-
-```bash
-git clone https://github.com/IAMI315/Financial.git .
-```
-
-### 已部署过
-
-如果存在 `.git`，先检查 **tracked 文件** 是否有修改：
-
-```bash
-git status --short
-git diff --quiet && git diff --cached --quiet
-TRACKED_DIRTY=$?
-```
-
-如果 `TRACKED_DIRTY` 非 0，停止代码更新并报告，不要覆盖。
-
-首次部署成功后，本机还会生成 `Caddyfile.ip` 和 `compose.ip.yaml`。它们是 VPS 专用配置，不应提交 Git。确保写入本仓库本机专用忽略文件：
-
-```bash
-touch .git/info/exclude
-grep -qxF 'Caddyfile.ip' .git/info/exclude || echo 'Caddyfile.ip' >> .git/info/exclude
-grep -qxF 'compose.ip.yaml' .git/info/exclude || echo 'compose.ip.yaml' >> .git/info/exclude
-```
-
-`.env` 和 `data/` 已由仓库 `.gitignore` 忽略。
-
-如果 tracked 工作区干净：
-
-```bash
-git fetch origin
-git checkout main
-git pull --ff-only origin main
-```
-
-记录当前版本：
-
-```bash
-FULL_SHA="$(git rev-parse HEAD)"
-SHORT_SHA="$(git rev-parse --short=7 HEAD)"
-echo "FULL_SHA=$FULL_SHA"
-echo "SHORT_SHA=$SHORT_SHA"
-```
-
-应用镜像始终设置为 `main` 分支最近一次成功构建的 `latest`：
-
-```bash
-LEDGER_IMAGE="ghcr.io/iami315/financial:latest"
-echo "LEDGER_IMAGE=$LEDGER_IMAGE"
-```
-
-`FULL_SHA` / `SHORT_SHA` 仍用于最终报告和故障定位，但不再用于日常部署镜像选择。GitHub Actions 同时保留 `sha-xxxxxxx` 标签，必要时可用于精确回滚。
-
----
-
-## 9. 检查 GHCR 镜像可访问性
-
-先尝试拉取：
-
-```bash
-$SUDO docker pull "$LEDGER_IMAGE"
-```
-
-如果成功，继续。
-
-如果出现 `unauthorized`、`denied` 等权限错误：
-
-1. 不要反复重试。
-2. 不要把任何已有 GitHub 凭据打印到日志。
-3. 向用户报告：
-
-```text
-GHCR 镜像当前需要身份认证。
-请提供/配置一个 GitHub Personal Access Token (classic)，至少具有 read:packages 权限，然后执行 docker login ghcr.io。
-```
-
-用户完成登录后可执行：
-
-```bash
-read -rsp "GitHub GHCR Token: " CR_PAT
-echo
-printf '%s' "$CR_PAT" | $SUDO docker login ghcr.io -u IAMI315 --password-stdin
-unset CR_PAT
-```
-
-然后重新执行：
-
-```bash
-$SUDO docker pull "$LEDGER_IMAGE"
-```
-
-如果 `latest` 不存在或无法拉取，先确认 GitHub `main` 对应的 Actions `CI and Container` 是否构建成功。不要擅自回退到未知旧镜像。
-
----
-
-## 10. 创建部署环境变量
-
-如果 `/opt/financial/.env` 已存在，不要覆盖其中的 `APP_SECRET` 和已经使用过的管理员初始化信息。
-
-### 首次部署时生成密钥
 
 ```bash
 APP_SECRET="$(openssl rand -hex 32)"
 ADMIN_PASSWORD="$(openssl rand -base64 24 | tr -d '\n' | tr '/+' '_-')"
 ```
 
-管理员用户名默认：
-
-```text
-admin
-```
-
-如果已成功获取公网 IP：
-
-```bash
-PUBLIC_URL="https://${VPS_IP}:${PORT}"
-```
-
-否则暂时不写 `PUBLIC_URL`。
-
-首次部署创建 `.env`：
+创建 `.env`：
 
 ```bash
 cat > .env <<EOF
@@ -437,38 +256,58 @@ APP_SECRET=${APP_SECRET}
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=${ADMIN_PASSWORD}
 REGISTRATION_OPEN=true
+COOKIE_SECURE=false
+PUBLIC_URL=http://127.0.0.1:${PORT}
 APP_VERSION=0.1.0
-VPS_IP=${VPS_IP}
-LEDGER_IMAGE=${LEDGER_IMAGE}
+LEDGER_IMAGE=ghcr.io/iami315/financial:latest
 EOF
-```
-
-如果 `VPS_IP` 非空，再追加：
-
-```bash
-echo "PUBLIC_URL=https://${VPS_IP}:${PORT}" >> .env
-```
-
-限制权限：
-
-```bash
 chmod 600 .env
 ```
 
-**必须保存本次生成的 `ADMIN_PASSWORD`，在最终报告中只显示一次给用户。**
+保存生成的管理员密码，并在最终报告中仅首次显示一次。
 
-注意：管理员首次成功写入数据库后，`.env` 中的 `ADMIN_PASSWORD` 只是初始化来源，之后不会持续覆盖数据库内的管理员密码。
+### 已有部署
+
+不要覆盖已有 `APP_SECRET`、管理员初始化信息和数据库。
+
+确保存在：
+
+```text
+PORT=7001
+COOKIE_SECURE=false
+LEDGER_IMAGE=ghcr.io/iami315/financial:latest
+```
+
+如果旧部署没有 `COOKIE_SECURE`：
+
+```bash
+grep -q '^COOKIE_SECURE=' .env || echo 'COOKIE_SECURE=false' >> .env
+```
+
+如果旧部署仍使用 SHA 镜像，可迁移为 `latest`：
+
+```bash
+sed -i 's#^LEDGER_IMAGE=.*#LEDGER_IMAGE=ghcr.io/iami315/financial:latest#' .env
+```
+
+如果存在旧的 `ACCESS_PORT=`，它已经废弃，可以删除：
+
+```bash
+sed -i '/^ACCESS_PORT=/d' .env
+```
+
+`COOKIE_SECURE=false` 是为了保证 `http://IP:PORT` 可以正常登录。若未来应用只允许通过 HTTPS 域名访问且不再允许 HTTP 直连，可自行改为 `true`。
 
 ---
 
-## 11. 准备持久化数据目录
+## 8. 持久化数据目录
 
 ```bash
 mkdir -p data/backups
 $SUDO chown -R 1000:1000 data
 ```
 
-绝对不要删除已有：
+绝对不要删除：
 
 ```text
 data/ledger.db
@@ -477,287 +316,152 @@ data/backups/
 
 ---
 
-## 12. 创建 IP 临时 HTTPS 配置
+## 9. 从旧 Caddy 部署迁移（已有旧部署时执行一次）
 
-不要修改仓库自带的正式域名版 `Caddyfile` 和 `compose.yaml`。另外创建仅用于 VPS 无域名阶段的本地文件。
-
-### `Caddyfile.ip`
+如果 `/opt/financial` 中存在旧的 `compose.ip.yaml` / `Caddyfile.ip`，或当前运行容器包含 `caddy`，先停止旧栈但不要删除 volume：
 
 ```bash
-cat > Caddyfile.ip <<'EOF'
-https://{$VPS_IP}:{$PORT} {
-  tls internal
-  encode zstd gzip
-  reverse_proxy app:{$PORT}
-
-  header {
-    X-Content-Type-Options nosniff
-    X-Frame-Options DENY
-    Referrer-Policy strict-origin-when-cross-origin
-    Content-Security-Policy "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; connect-src 'self'; object-src 'none'; base-uri 'self'; frame-ancestors 'none'"
-    Permissions-Policy "camera=(), microphone=(), geolocation=()"
-    -Server
-  }
-}
-EOF
+if [ -f compose.ip.yaml ]; then
+  $SUDO docker compose --env-file .env -f compose.ip.yaml down
+fi
 ```
 
-如果 `VPS_IP` 无法识别，则不能生成有效的 IP HTTPS 证书站点地址。此时停止在启动前，并向用户询问 VPS 公网 IPv4；不要把 `127.0.0.1` 当成公网地址。
+禁止添加 `-v`。
 
-### `compose.ip.yaml`
+旧的本地文件已经不再使用，可以在确认新版本代码已拉取后删除：
 
 ```bash
-cat > compose.ip.yaml <<'EOF'
-services:
-  app:
-    image: ${LEDGER_IMAGE:-ghcr.io/iami315/financial:latest}
-    restart: unless-stopped
-    env_file: .env
-    environment:
-      NODE_ENV: production
-      HOST: 0.0.0.0
-      PORT: ${PORT:-7001}
-      DATABASE_URL: /data/ledger.db
-      BACKUP_DIR: /data/backups
-    volumes:
-      - ./data:/data
-    networks:
-      - ledger-internal
-    healthcheck:
-      test: ["CMD", "node", "-e", "const p=process.env.PORT||'7001';fetch('http://127.0.0.1:'+p+'/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
-      interval: 30s
-      timeout: 5s
-      retries: 3
-      start_period: 15s
-
-  caddy:
-    image: caddy:2-alpine
-    restart: unless-stopped
-    depends_on:
-      app:
-        condition: service_healthy
-    environment:
-      VPS_IP: ${VPS_IP}
-      PORT: ${PORT}
-    ports:
-      - "${PORT}:${PORT}/tcp"
-    volumes:
-      - ./Caddyfile.ip:/etc/caddy/Caddyfile:ro
-      - caddy_ip_data:/data
-      - caddy_ip_config:/config
-    networks:
-      - ledger-internal
-
-networks:
-  ledger-internal:
-    driver: bridge
-
-volumes:
-  caddy_ip_data:
-  caddy_ip_config:
-EOF
+rm -f compose.ip.yaml Caddyfile.ip
 ```
 
-验证 Compose 解析：
+仓库自带的 `Caddyfile` 已被项目删除。今后只使用仓库根目录的：
 
-```bash
-$SUDO docker compose --env-file .env -f compose.ip.yaml config >/tmp/financial-compose-rendered.yaml
+```text
+compose.yaml
+.env
 ```
-
-如果该命令失败，先修复配置，禁止带错误启动。
 
 ---
 
-## 13. 启动服务
-
-拉取镜像：
+## 10. 验证 Compose
 
 ```bash
-$SUDO docker compose --env-file .env -f compose.ip.yaml pull
+$SUDO docker compose --env-file .env -f compose.yaml config >/tmp/financial-compose-rendered.yaml
 ```
 
-启动：
+确认渲染结果中只有 `app` 服务，并且端口映射为当前 `$PORT`。
+
+---
+
+## 11. 拉取并启动
 
 ```bash
-$SUDO docker compose --env-file .env -f compose.ip.yaml up -d
+$SUDO docker compose --env-file .env -f compose.yaml pull
+$SUDO docker compose --env-file .env -f compose.yaml up -d
+$SUDO docker compose --env-file .env -f compose.yaml ps
 ```
 
-查看状态：
-
-```bash
-$SUDO docker compose --env-file .env -f compose.ip.yaml ps
-```
-
-应用容器应最终显示 `healthy`。
+预期只有一个主要业务容器 `app`，最终状态为 `running` 且 `healthy`。
 
 如果未健康：
 
 ```bash
-$SUDO docker compose --env-file .env -f compose.ip.yaml logs --tail=200 app
-$SUDO docker compose --env-file .env -f compose.ip.yaml logs --tail=200 caddy
+$SUDO docker compose --env-file .env -f compose.yaml logs --tail=200 app
 ```
 
-分析并修复可安全修复的问题。如果涉及删除数据库或重建数据，停止并报告用户。
+如果问题涉及删除数据库或重建数据，停止并报告用户。
 
 ---
 
-## 14. 部署后验证
+## 12. 部署后验证
 
-### 14.1 容器状态
-
-```bash
-$SUDO docker compose --env-file .env -f compose.ip.yaml ps
-```
-
-要求：
-
-- `app`：running + healthy
-- `caddy`：running
-
-### 14.2 监听端口
+监听端口：
 
 ```bash
 ss -ltnp | grep ":${PORT} " || ss -ltnp | grep ":${PORT}$" || true
 ```
 
-必须确认宿主机已经监听 `$PORT/tcp`。
-
-### 14.3 HTTPS 健康检查
-
-由于 Caddy 使用内部证书，curl 需要 `-k`：
+HTTP 健康检查：
 
 ```bash
-curl -kfsS "https://${VPS_IP}:${PORT}/healthz"
+curl -fsS "http://127.0.0.1:${PORT}/healthz"
 ```
 
-期望响应包含：
+期望：
 
 ```json
-{ "status": "ok", "service": "financial-ledger-api" }
+{"status":"ok","service":"financial-ledger-api"}
 ```
 
-### 14.4 首页
+首页：
 
 ```bash
-curl -kI "https://${VPS_IP}:${PORT}/"
+curl -I "http://127.0.0.1:${PORT}/"
 ```
 
-应得到成功的 HTTP 响应，而不是 502/503。
-
-### 14.5 数据目录
+如果能获取公网 IPv4，再验证：
 
 ```bash
-ls -lah data
-ls -lah data/backups || true
+curl -fsS "http://${VPS_IP}:${PORT}/healthz" || true
 ```
 
-首次启动后应能看到 SQLite 数据库文件。
-
----
-
-## 15. 防火墙报告规则
-
-如果本机 `curl -k https://$VPS_IP:$PORT/healthz` 成功，但根据第 7 节检查发现防火墙未放行或状态不确定：
-
-**不要修改防火墙。**
-
-向用户明确报告：
+外部访问地址：
 
 ```text
-程序已经部署并在 VPS 本机正常运行。
-当前访问端口：<PORT>/tcp
-检测到该端口在 VPS 防火墙中未明确放行（或无法确认）。
-请你手动在 VPS 防火墙/云厂商安全组中开放 TCP <PORT> 入站端口。
-开放后访问：https://<VPS_IP>:<PORT>
-```
-
-如果本机防火墙确认已放行，但用户外部仍无法访问，报告：
-
-```text
-VPS 本机服务和本机防火墙检查正常，请检查云厂商控制台的 Security Group / Firewall / ACL 是否允许 TCP <PORT> 入站。
+http://<VPS_IP>:<PORT>
 ```
 
 ---
 
-## 16. 浏览器访问说明
+## 13. 宝塔 / Nginx / Cloudflare
 
-访问：
-
-```text
-https://<VPS_IP>:<PORT>
-```
-
-由于当前阶段没有域名，Caddy 使用内部 CA 签发临时证书，浏览器通常会显示证书风险提示。
-
-这是临时 IP 部署的预期结果。测试阶段可以手动选择继续访问。
-
-不要为了消除警告而关闭应用的 Secure Cookie 或把生产环境降级成 HTTP。
-
-后续有域名后，应恢复使用仓库自带的：
+Financial 源站只提供 HTTP。宝塔反向代理应填写：
 
 ```text
-compose.yaml
-Caddyfile
+http://127.0.0.1:<PORT>
 ```
 
-由 Caddy 自动申请公开受信任的 HTTPS 证书。
+默认即：
+
+```text
+http://127.0.0.1:7001
+```
+
+不要再填写：
+
+```text
+https://127.0.0.1:7001
+```
+
+TLS/HTTPS 由宝塔、Nginx 或 Cloudflare 外层处理。Financial 容器无需证书。
+
+若使用 Cloudflare + 宝塔 HTTPS，推荐链路：
+
+```text
+浏览器 HTTPS
+  -> Cloudflare
+  -> 宝塔/Nginx HTTPS
+  -> http://127.0.0.1:7001
+  -> Financial
+```
 
 ---
 
-## 17. 后续更新程序
+## 14. 日常更新
 
-在 `/opt/financial` 下执行：
+以后 `latest` 构建成功后：
 
 ```bash
 cd /opt/financial
+$SUDO docker compose --env-file .env -f compose.yaml pull
+$SUDO docker compose --env-file .env -f compose.yaml up -d
+$SUDO docker compose --env-file .env -f compose.yaml ps
+curl -fsS "http://127.0.0.1:${PORT}/healthz"
 ```
 
-先确认 tracked 工作区干净：
+通常不需要在 VPS 上 `docker build`。
 
-```bash
-git status --short
-```
-
-注意：`Caddyfile.ip`、`compose.ip.yaml`、`.env` 和 `data/` 应保持为本机部署文件/忽略文件，不应提交。
-
-### 从旧版双端口配置迁移（仅执行一次）
-
-如果现有部署仍包含 `ACCESS_PORT`，或 `compose.ip.yaml` 中仍硬编码内部端口 `3000`，不能只拉取新镜像。先执行 `git pull --ff-only origin main`，然后按本文档第 12 节重新生成 `Caddyfile.ip` 与 `compose.ip.yaml`。
-
-迁移后 `.env` 中删除旧的 `ACCESS_PORT=...`，并只保留一个端口配置，例如：
-
-```text
-PORT=7001
-```
-
-以后需要换端口也只改这一行。数据库目录 `data/` 不需要、也禁止删除。
-
-### 日常应用升级（推荐）
-
-确保 `.env` 使用：
-
-```text
-LEDGER_IMAGE=ghcr.io/iami315/financial:latest
-```
-
-如果这是从旧的 SHA 固定镜像迁移到 `latest`，只需要执行一次：
-
-```bash
-sed -i 's#^LEDGER_IMAGE=.*#LEDGER_IMAGE=ghcr.io/iami315/financial:latest#' .env
-```
-
-之后每次 GitHub `main` 的 Actions 构建成功，VPS 日常升级只需要：
-
-```bash
-$SUDO docker compose --env-file .env -f compose.ip.yaml pull
-$SUDO docker compose --env-file .env -f compose.ip.yaml up -d
-$SUDO docker compose --env-file .env -f compose.ip.yaml ps
-curl -kfsS "https://${VPS_IP}:${PORT}/healthz"
-```
-
-这里不需要在 VPS 上 `docker build`。GitHub Actions 已经完成构建，VPS 只负责拉取并重新创建容器。
-
-只有当 `compose.ip.yaml`、Caddy 配置或部署文档本身发生变化时，才需要额外更新仓库源码：
+如果 `compose.yaml`、部署文档或环境变量模板发生变化，再执行：
 
 ```bash
 git fetch origin
@@ -769,51 +473,39 @@ git pull --ff-only origin main
 
 ---
 
-## 18. 常用运维命令
-
-部署目录：
-
-```bash
-cd /opt/financial
-```
+## 15. 常用命令
 
 状态：
 
 ```bash
-$SUDO docker compose --env-file .env -f compose.ip.yaml ps
+$SUDO docker compose --env-file .env -f compose.yaml ps
 ```
 
-应用日志：
+日志：
 
 ```bash
-$SUDO docker compose --env-file .env -f compose.ip.yaml logs -f app
-```
-
-Caddy 日志：
-
-```bash
-$SUDO docker compose --env-file .env -f compose.ip.yaml logs -f caddy
+$SUDO docker compose --env-file .env -f compose.yaml logs -f app
 ```
 
 重启：
 
 ```bash
-$SUDO docker compose --env-file .env -f compose.ip.yaml restart
+$SUDO docker compose --env-file .env -f compose.yaml restart app
 ```
 
-停止但保留数据库和 volume：
+停止但保留数据：
 
 ```bash
-$SUDO docker compose --env-file .env -f compose.ip.yaml down
+$SUDO docker compose --env-file .env -f compose.yaml down
 ```
 
-再次启动：
+启动：
 
 ```bash
-$SUDO docker compose --env-file .env -f compose.ip.yaml up -d
+$SUDO docker compose --env-file .env -f compose.yaml up -d
 ```
 
-**不要执行：**
+禁止：
 
 ```bash
 rm -rf data
@@ -821,35 +513,30 @@ docker compose down -v
 docker system prune -a --volumes
 ```
 
-除非用户明确要求删除所有业务数据。
-
 ---
 
-## 19. 最终成功标准
-
-只有同时满足以下条件，才可以向用户报告“部署成功”：
+## 16. 最终成功标准
 
 - [ ] Docker Engine 正常
 - [ ] Docker Compose Plugin 正常
-- [ ] GitHub 仓库代码获取成功
-- [ ] GHCR `latest` 镜像拉取成功
-- [ ] `.env` 已安全创建，权限为 600
-- [ ] `data/` 持久化目录存在且可写
-- [ ] `app` 容器 running + healthy
-- [ ] `caddy` 容器 running
-- [ ] 宿主机正在监听 `$PORT/tcp`
-- [ ] `curl -k https://$VPS_IP:$PORT/healthz` 成功
-- [ ] 首页可返回成功 HTTP 响应
-- [ ] 已检查防火墙状态且没有擅自修改防火墙
-- [ ] 最终报告包含实际 IP、端口、Git SHA、镜像标签和防火墙结论
+- [ ] GitHub 代码更新成功
+- [ ] GHCR `latest` 拉取成功
+- [ ] `.env` 权限为 600
+- [ ] `.env` 使用单一 `PORT=` 配置
+- [ ] `COOKIE_SECURE=false`，HTTP 直连可登录
+- [ ] `data/` 持久化目录完整
+- [ ] 不再运行 Caddy 容器
+- [ ] `app` running + healthy
+- [ ] 宿主机监听 `$PORT/tcp`
+- [ ] `http://127.0.0.1:$PORT/healthz` 成功
+- [ ] 首页返回成功 HTTP 响应
+- [ ] 防火墙只检查，没有擅自修改
 
 ---
 
-## 20. 最终报告模板
+## 17. 最终报告模板
 
-Codex 执行结束后，按以下格式向用户报告，不要只说“完成了”。
-
-### 部署成功时
+### 成功
 
 ```text
 Financial Ledger 已部署完成。
@@ -857,40 +544,36 @@ Financial Ledger 已部署完成。
 部署目录：/opt/financial
 Git Commit：<FULL_SHA>
 Docker 镜像：ghcr.io/iami315/financial:latest
+协议：HTTP
+端口：<PORT>/tcp
 应用容器：healthy
-Caddy：running
 健康检查：通过
 
-访问地址：https://<VPS_IP>:<PORT>
-
-临时管理员：
-用户名：admin
-初始密码：<仅首次部署时显示生成的密码；已有数据库时不要声称密码被重置>
-
-证书说明：当前无域名，使用 Caddy 内部证书，浏览器第一次访问会提示证书不受信任，测试阶段可手动继续。
+直接访问：http://<VPS_IP>:<PORT>
+宝塔反代：http://127.0.0.1:<PORT>
 
 防火墙状态：<OPEN / BLOCKED_OR_NOT_ALLOWED / UNCERTAIN>
 ```
 
-如果端口未放行，再追加：
+首次部署时再附管理员初始密码。
+
+若端口未放行：
 
 ```text
+程序已经在 VPS 本机正常运行。
 需要你手动开放 TCP <PORT> 入站端口。
 我没有修改 VPS 防火墙。
-如果 VPS 本机防火墙已放行但仍无法访问，请同时检查云厂商安全组。
+如果本机防火墙已放行但外部仍无法访问，请检查云厂商安全组。
 ```
 
-### 部署失败时
-
-必须给出：
+### 失败
 
 ```text
 部署未完成。
-失败阶段：<Docker 安装 / Git / GHCR / 配置 / 容器启动 / 健康检查 / 其他>
+失败阶段：<Docker / Git / GHCR / 配置 / 容器启动 / 健康检查 / 其他>
 直接错误：<关键错误摘要>
-已完成步骤：<简述>
 数据目录是否保持完整：是/否/无法确认
-需要用户执行的动作：<明确的一件或几件事>
+需要用户执行的动作：<明确动作>
 ```
 
-不要隐藏失败，不要在未通过健康检查时报告“部署成功”。
+未通过健康检查时禁止报告“部署成功”。
