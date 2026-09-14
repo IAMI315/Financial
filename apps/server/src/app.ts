@@ -6,8 +6,11 @@ import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyServerOptions } from 'fastify';
 import {
   countAdmins,
+  createDefaultCategories,
   createUser,
   getSetting,
+  listCategories,
+  listUsers,
   setSetting,
 } from '@financial/database';
 import { assertValidPasswordLength, normalizeUsername } from '@financial/domain';
@@ -35,7 +38,7 @@ async function bootstrapSystem(state: AppState): Promise<void> {
     }
     const usernameNormalized = normalizeUsername(state.config.adminUsername);
     assertValidPasswordLength(state.config.adminPassword);
-    createUser(state.database.current, {
+    const admin = createUser(state.database.current, {
       username: state.config.adminUsername,
       usernameNormalized,
       email: null,
@@ -43,7 +46,20 @@ async function bootstrapSystem(state: AppState): Promise<void> {
       passwordHash: await hashPassword(state.config.adminPassword),
       role: 'admin',
     });
+    createDefaultCategories(state.database.current, admin.id);
   }
+
+  if (getSetting(state.database.current, 'default_categories_seed_v1') == null) {
+    state.database.current.sqlite.transaction(() => {
+      for (const user of listUsers(state.database.current)) {
+        if (listCategories(state.database.current, user.id).length === 0) {
+          createDefaultCategories(state.database.current, user.id);
+        }
+      }
+      setSetting(state.database.current, 'default_categories_seed_v1', 'done');
+    })();
+  }
+
   if (getSetting(state.database.current, 'registration_open') == null) {
     setSetting(state.database.current, 'registration_open', state.config.registrationOpen ? 'true' : 'false');
   }
