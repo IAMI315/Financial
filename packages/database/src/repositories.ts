@@ -92,6 +92,10 @@ export const DEFAULT_CATEGORY_MIGRATIONS: ReadonlyArray<{
       { type: 'income', name: '经营' },
     ],
   },
+  {
+    version: 3,
+    categories: [{ type: 'income', name: '工资' }],
+  },
 ];
 
 function mapUser(row: Record<string, unknown>): UserRecord {

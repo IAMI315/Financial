@@ -70,12 +70,15 @@ describe('database migrations', () => {
       passwordHash: 'test-hash',
     });
     createCategory(handle, user.id, { type: 'expense', name: '经营', parentId: null, sortOrder: 0 });
-    createCategory(handle, user.id, { type: 'income', name: '工资', parentId: null, sortOrder: 0 });
 
-    const migration = DEFAULT_CATEGORY_MIGRATIONS.find((item) => item.version === 2);
-    expect(migration).toBeDefined();
-    expect(syncDefaultCategoryAdditions(handle, user.id, migration!.categories)).toBe(2);
-    expect(syncDefaultCategoryAdditions(handle, user.id, migration!.categories)).toBe(0);
+    const migrationV2 = DEFAULT_CATEGORY_MIGRATIONS.find((item) => item.version === 2);
+    const migrationV3 = DEFAULT_CATEGORY_MIGRATIONS.find((item) => item.version === 3);
+    expect(migrationV2).toBeDefined();
+    expect(migrationV3).toBeDefined();
+    expect(syncDefaultCategoryAdditions(handle, user.id, migrationV2!.categories)).toBe(2);
+    expect(syncDefaultCategoryAdditions(handle, user.id, migrationV2!.categories)).toBe(0);
+    expect(syncDefaultCategoryAdditions(handle, user.id, migrationV3!.categories)).toBe(1);
+    expect(syncDefaultCategoryAdditions(handle, user.id, migrationV3!.categories)).toBe(0);
 
     const categories = listCategories(handle, user.id);
     expect(categories.filter((item) => item.type === 'expense' && item.name === '经营')).toHaveLength(1);
