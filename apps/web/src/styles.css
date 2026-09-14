@@ -88,9 +88,17 @@ h3 { margin: 18px 0 7px; color: var(--muted); font-size: 12px; font-weight: 700;
 .money-field { display: flex; align-items: center; gap: 8px; margin: 10px 0 20px; border-bottom: 1px solid var(--border); }
 .money-field span { color: #667085; font-size: 32px; }
 .money-field input { border: 0; border-radius: 0; box-shadow: none !important; padding: 6px 0 10px; background: transparent; font-size: clamp(38px, 8vw, 52px); font-weight: 750; letter-spacing: -.04em; }
-.category-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin-bottom: 16px; }
-.category-chip { min-height: 42px; border: 1px solid var(--border); border-radius: 11px; background: #fafbfc; color: #566075; font-size: 13px; }
+.category-section-title { display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; }
+.category-section-title::after { content: ''; height: 1px; flex: 1; background: #edf0f5; }
+.category-section-title span { color: #7a8497; font-size: 11px; font-weight: 800; letter-spacing: .05em; }
+.category-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 7px; margin-bottom: 14px; }
+.category-chip { min-height: 36px; border: 1px solid var(--border); border-radius: 9px; background: #fafbfc; padding: 6px 8px; color: #566075; font-size: 12px; line-height: 1.2; }
 .category-chip.selected { border-color: #92abe4; background: var(--primary-soft); color: #2859bb; font-weight: 750; }
+.add-category-chip { border-style: dashed; background: #fff; color: #607092; }
+.add-category-chip:hover { border-color: #aebddd; background: #f8faff; color: #315fb9; }
+.quick-category-form { display: grid; grid-template-columns: minmax(0, 1fr) auto auto; gap: 7px; align-items: center; margin: -2px 0 14px; padding: 9px; border: 1px solid #e5eaf3; border-radius: 11px; background: #fafcff; }
+.quick-category-form input { min-width: 0; padding: 8px 10px; border-radius: 9px; font-size: 12px; }
+.quick-category-form button { padding: 8px 11px; border-radius: 9px; font-size: 12px; }
 details { margin: 12px 0; }
 summary { color: #647087; font-size: 13px; cursor: pointer; }
 details textarea { margin-top: 8px; }
@@ -223,6 +231,8 @@ details textarea { margin-top: 8px; }
   .metric strong { font-size: 16px; }
   .metric span { font-size: 10px; }
   .category-grid { grid-template-columns: repeat(3, 1fr); }
+  .quick-category-form { grid-template-columns: 1fr auto; }
+  .quick-category-form .secondary { grid-column: 1 / -1; }
   .two-column, .filter-grid, .mapping-grid { grid-template-columns: 1fr; }
   .inline-form { grid-template-columns: 1fr; }
   .transaction-row.roomy { grid-template-columns: minmax(0, 1fr) auto; }

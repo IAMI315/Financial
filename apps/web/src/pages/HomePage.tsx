@@ -29,7 +29,7 @@ export function HomePage() {
 
   return (
     <div className="page-grid home-grid">
-      <QuickEntry categories={categories} onSaved={() => void load()} />
+      <QuickEntry categories={categories} onSaved={() => void load()} onCategoryCreated={(category) => setCategories((current) => [...current, category])} />
       <div className="dashboard-column">
         <section className="summary-grid">
           <article className="metric"><span>本月收入</span><strong>{money(stats?.incomeFen ?? 0)}</strong></article>
