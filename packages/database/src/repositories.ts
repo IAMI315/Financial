@@ -68,14 +68,30 @@ export type NewTransaction = {
   importBatchId?: number | null | undefined;
 };
 
-const defaultCategories: Array<{ type: TransactionType; name: string }> = [
-  ...['餐饮', '交通', '购物', '居住', '娱乐', '医疗', '学习', '通讯', '生活缴费', '人情/礼物', '其他'].map(
+export type DefaultCategoryTemplate = { type: TransactionType; name: string };
+
+const defaultCategories: DefaultCategoryTemplate[] = [
+  ...['餐饮', '交通', '购物', '居住', '娱乐', '医疗', '学习', '通讯', '生活缴费', '人情/礼物', '其他', '经营'].map(
     (name) => ({ type: 'expense' as const, name }),
   ),
-  ...['工资', '奖金', '兼职', '退款', '红包/礼金', '其他'].map((name) => ({
+  ...['工资', '奖金', '兼职', '退款', '红包/礼金', '其他', '补贴', '经营'].map((name) => ({
     type: 'income' as const,
     name,
   })),
+];
+
+export const DEFAULT_CATEGORY_MIGRATIONS: ReadonlyArray<{
+  version: number;
+  categories: ReadonlyArray<DefaultCategoryTemplate>;
+}> = [
+  {
+    version: 2,
+    categories: [
+      { type: 'expense', name: '经营' },
+      { type: 'income', name: '补贴' },
+      { type: 'income', name: '经营' },
+    ],
+  },
 ];
 
 function mapUser(row: Record<string, unknown>): UserRecord {
@@ -193,6 +209,35 @@ export function createDefaultCategories(handle: DatabaseHandle, userId: number):
       insert.run(userId, category.type, category.name, index, now, now);
     });
   })();
+}
+
+export function syncDefaultCategoryAdditions(
+  handle: DatabaseHandle,
+  userId: number,
+  additions: ReadonlyArray<DefaultCategoryTemplate>,
+): number {
+  const roots = handle.sqlite
+    .prepare('select type, name, sort_order from categories where user_id = ? and parent_id is null')
+    .all(userId) as Array<{ type: TransactionType; name: string; sort_order: number }>;
+  const existing = new Set(roots.map((category) => `${category.type}\u0000${category.name}`));
+  const nextSortOrder: Record<TransactionType, number> = {
+    expense: Math.max(-1, ...roots.filter((category) => category.type === 'expense').map((category) => Number(category.sort_order))) + 1,
+    income: Math.max(-1, ...roots.filter((category) => category.type === 'income').map((category) => Number(category.sort_order))) + 1,
+  };
+  const insert = handle.sqlite.prepare(
+    `insert into categories (user_id, type, name, parent_id, is_archived, sort_order, created_at, updated_at)
+     values (?, ?, ?, null, 0, ?, ?, ?)`,
+  );
+  const now = Date.now();
+  let inserted = 0;
+  for (const category of additions) {
+    const key = `${category.type}\u0000${category.name}`;
+    if (existing.has(key)) continue;
+    insert.run(userId, category.type, category.name, nextSortOrder[category.type]++, now, now);
+    existing.add(key);
+    inserted += 1;
+  }
+  return inserted;
 }
 
 export function listUsers(handle: DatabaseHandle): UserRecord[] {

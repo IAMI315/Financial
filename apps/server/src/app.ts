@@ -6,12 +6,14 @@ import fastifyStatic from '@fastify/static';
 import Fastify, { type FastifyServerOptions } from 'fastify';
 import {
   countAdmins,
+  DEFAULT_CATEGORY_MIGRATIONS,
   createDefaultCategories,
   createUser,
   getSetting,
   listCategories,
   listUsers,
   setSetting,
+  syncDefaultCategoryAdditions,
 } from '@financial/database';
 import { assertValidPasswordLength, normalizeUsername } from '@financial/domain';
 import { BackupService } from './backup.js';
@@ -57,6 +59,17 @@ async function bootstrapSystem(state: AppState): Promise<void> {
         }
       }
       setSetting(state.database.current, 'default_categories_seed_v1', 'done');
+    })();
+  }
+
+  for (const migration of DEFAULT_CATEGORY_MIGRATIONS) {
+    const settingKey = `default_categories_seed_v${migration.version}`;
+    if (getSetting(state.database.current, settingKey) != null) continue;
+    state.database.current.sqlite.transaction(() => {
+      for (const user of listUsers(state.database.current)) {
+        syncDefaultCategoryAdditions(state.database.current, user.id, migration.categories);
+      }
+      setSetting(state.database.current, settingKey, 'done');
     })();
   }
 

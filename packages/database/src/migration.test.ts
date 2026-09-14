@@ -3,6 +3,13 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { migrateDatabase } from './migrate.js';
+import {
+  createCategory,
+  createUser,
+  DEFAULT_CATEGORY_MIGRATIONS,
+  listCategories,
+  syncDefaultCategoryAdditions,
+} from './repositories.js';
 
 const tempDirs: string[] = [];
 
@@ -49,5 +56,32 @@ describe('database migrations', () => {
       .get() as { count: number };
     expect(migrationCount.count).toBe(1);
     rerun.sqlite.close();
+  });
+
+  it('syncs newly introduced default categories to existing users without duplicates', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'financial-ledger-defaults-'));
+    tempDirs.push(dir);
+    const handle = migrateDatabase(join(dir, 'ledger.db'));
+    const user = createUser(handle, {
+      username: 'existing-user',
+      usernameNormalized: 'existing-user',
+      email: null,
+      emailNormalized: null,
+      passwordHash: 'test-hash',
+    });
+    createCategory(handle, user.id, { type: 'expense', name: '经营', parentId: null, sortOrder: 0 });
+    createCategory(handle, user.id, { type: 'income', name: '工资', parentId: null, sortOrder: 0 });
+
+    const migration = DEFAULT_CATEGORY_MIGRATIONS.find((item) => item.version === 2);
+    expect(migration).toBeDefined();
+    expect(syncDefaultCategoryAdditions(handle, user.id, migration!.categories)).toBe(2);
+    expect(syncDefaultCategoryAdditions(handle, user.id, migration!.categories)).toBe(0);
+
+    const categories = listCategories(handle, user.id);
+    expect(categories.filter((item) => item.type === 'expense' && item.name === '经营')).toHaveLength(1);
+    expect(categories.filter((item) => item.type === 'income' && item.name === '工资')).toHaveLength(1);
+    expect(categories.filter((item) => item.type === 'income' && item.name === '补贴')).toHaveLength(1);
+    expect(categories.filter((item) => item.type === 'income' && item.name === '经营')).toHaveLength(1);
+    handle.sqlite.close();
   });
 });

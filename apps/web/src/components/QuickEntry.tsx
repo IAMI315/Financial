@@ -25,6 +25,18 @@ export function QuickEntry({ categories, onSaved, onCategoryCreated }: { categor
     [categories, categoryId],
   );
 
+  function switchType(nextType: TransactionType) {
+    const selected = categoryId === '' ? undefined : categories.find((category) => category.id === categoryId && category.parentId === null && !category.isArchived);
+    const matching = selected
+      ? categories.find((category) => category.type === nextType && category.parentId === null && !category.isArchived && category.name === selected.name)
+      : undefined;
+    setType(nextType);
+    setCategoryId(matching?.id ?? '');
+    setSubcategoryId('');
+    setAddingCategory(false);
+    setNewCategoryName('');
+  }
+
   function reset() {
     setType('expense');
     setAmount('');
@@ -88,8 +100,8 @@ export function QuickEntry({ categories, onSaved, onCategoryCreated }: { categor
     <section className="panel quick-entry">
       <div className="panel-title"><div><span className="eyebrow">快速记账</span><h2>记一笔</h2></div><span className="online-dot">联网</span></div>
       <div className="segmented compact">
-        <button type="button" className={type === 'expense' ? 'active' : ''} onClick={() => { setType('expense'); setCategoryId(''); setSubcategoryId(''); setAddingCategory(false); setNewCategoryName(''); }}>支出</button>
-        <button type="button" className={type === 'income' ? 'active' : ''} onClick={() => { setType('income'); setCategoryId(''); setSubcategoryId(''); setAddingCategory(false); setNewCategoryName(''); }}>收入</button>
+        <button type="button" className={type === 'expense' ? 'active' : ''} onClick={() => switchType('expense')}>支出</button>
+        <button type="button" className={type === 'income' ? 'active' : ''} onClick={() => switchType('income')}>收入</button>
       </div>
       <div className="money-field"><span>¥</span><input value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" placeholder="0.00" aria-label="金额" /></div>
       <div className="category-section-title"><span>一级分类</span></div>

@@ -65,8 +65,8 @@ describe('V1 API integration', () => {
     const categoriesA = await app.inject({ method: 'GET', url: '/api/categories', headers: { cookie: a.cookie } });
     const categoriesB = await app.inject({ method: 'GET', url: '/api/categories', headers: { cookie: b.cookie } });
     expect(categoriesA.statusCode).toBe(200);
-    expect(categoriesA.json().categories).toHaveLength(17);
-    expect(categoriesB.json().categories).toHaveLength(17);
+    expect(categoriesA.json().categories).toHaveLength(20);
+    expect(categoriesB.json().categories).toHaveLength(20);
     const expense = categoriesA.json().categories.find((category: { type: string; parentId: number | null }) => category.type === 'expense' && category.parentId === null);
 
     const created = await app.inject({

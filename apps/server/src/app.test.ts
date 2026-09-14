@@ -52,11 +52,14 @@ describe('GET /healthz', () => {
       headers: { cookie },
     });
     expect(categories.statusCode).toBe(200);
-    expect(categories.json().categories).toHaveLength(17);
+    expect(categories.json().categories).toHaveLength(20);
     expect(categories.json().categories).toEqual(
       expect.arrayContaining([
         expect.objectContaining({ type: 'expense', name: '餐饮' }),
+        expect.objectContaining({ type: 'expense', name: '经营' }),
         expect.objectContaining({ type: 'income', name: '工资' }),
+        expect.objectContaining({ type: 'income', name: '补贴' }),
+        expect.objectContaining({ type: 'income', name: '经营' }),
       ]),
     );
 
