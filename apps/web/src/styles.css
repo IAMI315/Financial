@@ -115,6 +115,11 @@ details textarea { margin-top: 8px; }
 .month-ledger-title { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px solid var(--border); background: #f8faff; padding: 14px 16px; }
 .month-ledger-title h3 { margin: 2px 0 0; color: #27344c; font-size: 18px; }
 .month-ledger-title > span { color: var(--muted); font-size: 12px; }
+.day-ledgers { display: grid; gap: 12px; padding: 14px; background: #fafbfd; }
+.day-ledger { overflow: hidden; border: 1px solid #e7ebf2; border-radius: 13px; background: #fff; }
+.day-ledger-title { display: flex; justify-content: space-between; align-items: center; gap: 12px; border-bottom: 1px solid #edf0f4; background: #fdfefe; padding: 10px 13px; }
+.day-ledger-title strong { color: #49566d; font-size: 13px; }
+.day-ledger-title span { color: var(--muted); font-size: 11px; }
 .ledger-table-wrap { overflow-x: auto; }
 .ledger-table { width: 100%; min-width: 760px; border-collapse: collapse; }
 .ledger-table th, .ledger-table td { border-bottom: 1px solid #edf0f4; padding: 11px 14px; text-align: left; vertical-align: middle; }
@@ -226,6 +231,8 @@ details textarea { margin-top: 8px; }
   .stats-header label { width: 135px; }
   .month-ledger { border-radius: 13px; }
   .month-ledger-title { padding: 12px 13px; }
+  .day-ledgers { gap: 10px; padding: 10px; }
+  .day-ledger-title { padding: 9px 11px; }
   .ledger-table th, .ledger-table td { padding: 10px 11px; }
   .mapping-list label, .mapping-row { grid-template-columns: 1fr; border-bottom: 1px solid #edf0f4; padding: 10px 0; }
   .status-grid { grid-template-columns: 1fr; }
