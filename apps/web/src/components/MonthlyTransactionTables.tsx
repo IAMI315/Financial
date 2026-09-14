@@ -7,6 +7,11 @@ type MonthlyTransactionTablesProps = {
   onDelete?: (item: Transaction) => void;
 };
 
+const weekdayFormatter = new Intl.DateTimeFormat('zh-CN', {
+  weekday: 'long',
+  timeZone: 'Asia/Shanghai',
+});
+
 function monthLabel(month: string): string {
   const [year, monthNumber] = month.split('-');
   return `${year}年${Number(monthNumber)}月`;
@@ -15,6 +20,11 @@ function monthLabel(month: string): string {
 function dayLabel(day: string): string {
   const [, monthNumber, dayNumber] = day.split('-');
   return `${Number(monthNumber)}月${Number(dayNumber)}日`;
+}
+
+function transactionTimeLabel(item: Transaction): string {
+  const weekday = weekdayFormatter.format(new Date(item.occurredAt));
+  return `${item.occurredAtLocal.slice(0, 10)}-${weekday} ${item.occurredAtLocal.slice(11)}`;
 }
 
 function groupByDay(items: Transaction[]): Array<[string, Transaction[]]> {
@@ -77,7 +87,7 @@ export function MonthlyTransactionTables({
                     <tbody>
                       {dayItems.map((item) => (
                         <tr key={item.id}>
-                          <td className="time-cell">{item.occurredAtLocal.slice(11)}</td>
+                          <td className="time-cell">{transactionTimeLabel(item)}</td>
                           <td><span className={`type-pill ${item.type}`}>{item.type === 'expense' ? '支出' : '收入'}</span></td>
                           <td>
                             <strong>{item.categoryName}</strong>
