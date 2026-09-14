@@ -49,4 +49,4 @@ docker compose up -d
 
 ## PWA
 
-网页可安装为 PWA。Service Worker 只缓存静态应用外壳；`/api` 和 `/healthz` 永远走网络，不支持离线记账或离线数据同步。
+网页可安装为 PWA。每次生产构建都会生成新的构建标识；页面会用该标识注册 Service Worker。新 Worker 安装后会立即 `skipWaiting`、激活时清理旧版 Financial 缓存并 `clients.claim` 接管现有页面，已受旧 Worker 控制的页面会自动刷新一次切换到新版本。Service Worker 脚本自身禁用 HTTP 缓存；`/api` 和 `/healthz` 永远走网络，不支持离线记账或离线数据同步。

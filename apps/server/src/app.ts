@@ -61,7 +61,11 @@ async function bootstrapSystem(state: AppState): Promise<void> {
   }
 
   if (getSetting(state.database.current, 'registration_open') == null) {
-    setSetting(state.database.current, 'registration_open', state.config.registrationOpen ? 'true' : 'false');
+    setSetting(
+      state.database.current,
+      'registration_open',
+      state.config.registrationOpen ? 'true' : 'false',
+    );
   }
 }
 
@@ -93,7 +97,9 @@ export async function buildApp(
       request.url.startsWith('/api/') &&
       !request.url.startsWith('/api/admin/')
     ) {
-      return reply.code(503).send({ error: 'MAINTENANCE', message: '系统正在执行数据维护，请稍后重试' });
+      return reply
+        .code(503)
+        .send({ error: 'MAINTENANCE', message: '系统正在执行数据维护，请稍后重试' });
     }
   });
 
@@ -113,7 +119,18 @@ export async function buildApp(
   if (config.nodeEnv === 'production') {
     const webRoot = resolve(process.cwd(), 'apps/web/dist');
     if (existsSync(webRoot)) {
-      await app.register(fastifyStatic, { root: webRoot, prefix: '/' });
+      await app.register(fastifyStatic, {
+        root: webRoot,
+        prefix: '/',
+        setHeaders(response, filePath) {
+          if (filePath.endsWith('sw.js')) {
+            response.header('Cache-Control', 'no-store, no-cache, must-revalidate');
+            response.header('Service-Worker-Allowed', '/');
+          } else if (filePath.endsWith('index.html')) {
+            response.header('Cache-Control', 'no-cache');
+          }
+        },
+      });
       app.setNotFoundHandler(async (request, reply) => {
         if (request.url.startsWith('/api/')) return reply.code(404).send({ error: 'NOT_FOUND' });
         return reply.sendFile('index.html');
@@ -124,9 +141,12 @@ export async function buildApp(
   let backupTimer: NodeJS.Timeout | undefined;
   if (config.nodeEnv !== 'test' && state.database.databasePath !== ':memory:') {
     void backups.ensureAutomaticBackups().catch((error: unknown) => app.log.error(error));
-    backupTimer = setInterval(() => {
-      void backups.ensureAutomaticBackups().catch((error: unknown) => app.log.error(error));
-    }, 60 * 60 * 1000);
+    backupTimer = setInterval(
+      () => {
+        void backups.ensureAutomaticBackups().catch((error: unknown) => app.log.error(error));
+      },
+      60 * 60 * 1000,
+    );
     backupTimer.unref();
   }
 
