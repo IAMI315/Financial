@@ -1,5 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import { buildApp } from './app.js';
+import { loadConfig } from './config.js';
+
+describe('server port configuration', () => {
+  it('defaults to 7001 and accepts a single PORT override', () => {
+    expect(loadConfig({}).port).toBe(7001);
+    expect(loadConfig({ PORT: '8123' }).port).toBe(8123);
+  });
+});
 
 describe('GET /healthz', () => {
   it('returns the service health payload', async () => {

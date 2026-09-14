@@ -1,6 +1,6 @@
 {$SITE_HOST} {
   encode zstd gzip
-  reverse_proxy app:3000
+  reverse_proxy app:{$PORT}
   header {
     X-Content-Type-Options nosniff
     X-Frame-Options DENY

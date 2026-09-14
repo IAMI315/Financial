@@ -10,7 +10,7 @@ pnpm db:migrate
 pnpm dev
 ```
 
-前端默认位于 `http://127.0.0.1:5173`，API 位于 `http://127.0.0.1:3000`。Vite 会代理 `/api` 与 `/healthz`。
+前端默认位于 `http://127.0.0.1:5173`，API 默认位于 `http://127.0.0.1:7001`。Vite 会读取根目录 `.env` 中的 `PORT` 并代理 `/api` 与 `/healthz`。
 
 完整质量门禁：
 
@@ -21,6 +21,7 @@ pnpm check
 ## 首次生产部署
 
 1. 将 `env.example` 复制为 `.env`。
+   - 项目默认端口为 `7001`。如需自定义，只修改 `.env` 中唯一的 `PORT=7001` 这一行；服务端、Docker 健康检查与 Caddy 上游会自动同步。
 2. 生成至少 32 字符的随机 `APP_SECRET`。
 3. 设置初始 `ADMIN_USERNAME` / `ADMIN_PASSWORD`。管理员首次创建后，`.env` 中的初始密码不再决定真实登录密码。
 4. 将 `SITE_HOST` 设置为已经解析到 VPS 的域名。

@@ -6,7 +6,7 @@ services:
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
-      PORT: 3000
+      PORT: ${PORT:-7001}
       DATABASE_URL: /data/ledger.db
       BACKUP_DIR: /data/backups
     volumes:
@@ -14,7 +14,13 @@ services:
     networks:
       - ledger-internal
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "const p=process.env.PORT||'7001';fetch('http://127.0.0.1:'+p+'/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))",
+        ]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -28,10 +34,11 @@ services:
         condition: service_healthy
     environment:
       SITE_HOST: ${SITE_HOST}
+      PORT: ${PORT:-7001}
     ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
+      - '80:80'
+      - '443:443'
+      - '443:443/udp'
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data

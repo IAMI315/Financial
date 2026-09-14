@@ -2,7 +2,7 @@
 
 > 本文档的目标读者是运行在 VPS 上的 Codex。请按本文档直接执行部署，不需要等待用户逐步确认；只有遇到明确需要用户介入的事项时再停止并报告。
 >
-> 当前阶段 **不使用域名**。部署完成后应能通过 `https://<VPS_IP>:<ACCESS_PORT>` 访问应用。
+> 当前阶段 **不使用域名**。部署完成后应能通过 `https://<VPS_IP>:<PORT>` 访问应用。
 >
 > **重要：不要擅自修改 VPS 防火墙、安全组或云厂商防火墙规则。** 如果目标端口没有放行，只完成本机部署并向用户报告需要开放的端口。
 
@@ -28,27 +28,25 @@ ghcr.io/iami315/financial:latest
 /opt/financial
 ```
 
-默认外部访问端口：
+默认项目端口：
 
 ```text
-8443/tcp
+7001/tcp
 ```
+
+项目端口只有一个配置入口：`.env`（由 `env.example` 复制而来）中的：
+
+```text
+PORT=7001
+```
+
+如需自定义端口，只修改这一行，例如 `PORT=8123`；应用监听、Docker 健康检查、Caddy 反向代理和宿主机映射都会自动同步，不要再修改其他端口配置。
 
 最终访问地址：
 
 ```text
-https://<VPS_PUBLIC_IP>:8443
+https://<VPS_PUBLIC_IP>:7001
 ```
-
-如果 8443 已被占用，依次尝试：
-
-```text
-9443
-10443
-18443
-```
-
-选定其他端口后，最终报告中必须明确告诉用户实际端口。
 
 ### 为什么使用 HTTPS 而不是 `http://IP:PORT`
 
@@ -202,33 +200,44 @@ echo "VPS_IP=$VPS_IP"
 
 ---
 
-## 6. 选择访问端口
+## 6. 确认项目端口
 
-按顺序检查：
+默认项目端口为 `7001`。端口配置必须保持单一来源：最终 `.env` 中只通过 `PORT=<端口>` 控制整个项目。
+
+如果是已有部署，优先读取现有 `.env` 的端口；否则使用默认值：
 
 ```bash
-for p in 8443 9443 10443 18443; do
-  if ! ss -ltnH | awk '{print $4}' | grep -Eq "(^|:)${p}$"; then
-    ACCESS_PORT="$p"
-    break
+PORT=7001
+if [ -f /opt/financial/.env ]; then
+  CONFIGURED_PORT="$(sed -n 's/^PORT=//p' /opt/financial/.env | tail -n 1)"
+  if [ -n "$CONFIGURED_PORT" ]; then
+    PORT="$CONFIGURED_PORT"
   fi
-done
-
-if [ -z "${ACCESS_PORT:-}" ]; then
-  echo "ERROR: 8443/9443/10443/18443 均被占用。"
-  exit 1
 fi
 
-echo "ACCESS_PORT=$ACCESS_PORT"
+echo "PORT=$PORT"
 ```
 
-不要关闭占用端口的其他服务。
+检查端口是否被其他服务占用：
+
+```bash
+if ss -ltnH | awk '{print $4}' | grep -Eq "(^|:)${PORT}$"; then
+  echo "ERROR: 项目端口 ${PORT}/tcp 已被其他服务占用。"
+  exit 1
+fi
+```
+
+如果端口被占用，不要关闭其他服务，也不要擅自选择新端口。向用户报告冲突；用户若要改端口，只需修改 `.env`（首次部署则修改 `env.example` 后复制为 `.env`）中的一行，例如：
+
+```text
+PORT=8123
+```
 
 ---
 
 ## 7. 检查防火墙，但不要修改
 
-目标是判断 `$ACCESS_PORT/tcp` 是否可能被 VPS 本机防火墙阻断。
+目标是判断 `$PORT/tcp` 是否可能被 VPS 本机防火墙阻断。
 
 ### UFW
 
@@ -238,7 +247,7 @@ if command -v ufw >/dev/null 2>&1; then
 fi
 ```
 
-如果 UFW 为 `Status: active`，检查是否有 `$ACCESS_PORT/tcp` 的 ALLOW 规则。
+如果 UFW 为 `Status: active`，检查是否有 `$PORT/tcp` 的 ALLOW 规则。
 
 ### firewalld
 
@@ -276,7 +285,7 @@ FIREWALL_PORT_STATUS=UNCERTAIN
 
 - **不要执行任何放行命令。**
 - 继续完成 Docker 部署。
-- 最终报告中明确告诉用户需要检查/放行 `$ACCESS_PORT/tcp`。
+- 最终报告中明确告诉用户需要检查/放行 `$PORT/tcp`。
 
 云厂商安全组通常无法从 VPS 内部完整判断。如果本机服务正常但外部无法访问，也应在最终报告中提醒用户检查云厂商控制台中的入站规则。
 
@@ -408,7 +417,7 @@ admin
 如果已成功获取公网 IP：
 
 ```bash
-PUBLIC_URL="https://${VPS_IP}:${ACCESS_PORT}"
+PUBLIC_URL="https://${VPS_IP}:${PORT}"
 ```
 
 否则暂时不写 `PUBLIC_URL`。
@@ -417,9 +426,11 @@ PUBLIC_URL="https://${VPS_IP}:${ACCESS_PORT}"
 
 ```bash
 cat > .env <<EOF
+# Project port: custom deployments only need to change this one line.
+PORT=${PORT}
+
 NODE_ENV=production
 HOST=0.0.0.0
-PORT=3000
 DATABASE_URL=/data/ledger.db
 BACKUP_DIR=/data/backups
 APP_SECRET=${APP_SECRET}
@@ -428,7 +439,6 @@ ADMIN_PASSWORD=${ADMIN_PASSWORD}
 REGISTRATION_OPEN=true
 APP_VERSION=0.1.0
 VPS_IP=${VPS_IP}
-ACCESS_PORT=${ACCESS_PORT}
 LEDGER_IMAGE=${LEDGER_IMAGE}
 EOF
 ```
@@ -436,7 +446,7 @@ EOF
 如果 `VPS_IP` 非空，再追加：
 
 ```bash
-echo "PUBLIC_URL=https://${VPS_IP}:${ACCESS_PORT}" >> .env
+echo "PUBLIC_URL=https://${VPS_IP}:${PORT}" >> .env
 ```
 
 限制权限：
@@ -475,10 +485,10 @@ data/backups/
 
 ```bash
 cat > Caddyfile.ip <<'EOF'
-https://{$VPS_IP}:{$ACCESS_PORT} {
+https://{$VPS_IP}:{$PORT} {
   tls internal
   encode zstd gzip
-  reverse_proxy app:3000
+  reverse_proxy app:{$PORT}
 
   header {
     X-Content-Type-Options nosniff
@@ -506,7 +516,7 @@ services:
     environment:
       NODE_ENV: production
       HOST: 0.0.0.0
-      PORT: 3000
+      PORT: ${PORT:-7001}
       DATABASE_URL: /data/ledger.db
       BACKUP_DIR: /data/backups
     volumes:
@@ -514,7 +524,7 @@ services:
     networks:
       - ledger-internal
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test: ["CMD", "node", "-e", "const p=process.env.PORT||'7001';fetch('http://127.0.0.1:'+p+'/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 30s
       timeout: 5s
       retries: 3
@@ -528,9 +538,9 @@ services:
         condition: service_healthy
     environment:
       VPS_IP: ${VPS_IP}
-      ACCESS_PORT: ${ACCESS_PORT}
+      PORT: ${PORT}
     ports:
-      - "${ACCESS_PORT}:${ACCESS_PORT}/tcp"
+      - "${PORT}:${PORT}/tcp"
     volumes:
       - ./Caddyfile.ip:/etc/caddy/Caddyfile:ro
       - caddy_ip_data:/data
@@ -607,29 +617,29 @@ $SUDO docker compose --env-file .env -f compose.ip.yaml ps
 ### 14.2 监听端口
 
 ```bash
-ss -ltnp | grep ":${ACCESS_PORT} " || ss -ltnp | grep ":${ACCESS_PORT}$" || true
+ss -ltnp | grep ":${PORT} " || ss -ltnp | grep ":${PORT}$" || true
 ```
 
-必须确认宿主机已经监听 `$ACCESS_PORT/tcp`。
+必须确认宿主机已经监听 `$PORT/tcp`。
 
 ### 14.3 HTTPS 健康检查
 
 由于 Caddy 使用内部证书，curl 需要 `-k`：
 
 ```bash
-curl -kfsS "https://${VPS_IP}:${ACCESS_PORT}/healthz"
+curl -kfsS "https://${VPS_IP}:${PORT}/healthz"
 ```
 
 期望响应包含：
 
 ```json
-{"status":"ok","service":"financial-ledger-api"}
+{ "status": "ok", "service": "financial-ledger-api" }
 ```
 
 ### 14.4 首页
 
 ```bash
-curl -kI "https://${VPS_IP}:${ACCESS_PORT}/"
+curl -kI "https://${VPS_IP}:${PORT}/"
 ```
 
 应得到成功的 HTTP 响应，而不是 502/503。
@@ -647,7 +657,7 @@ ls -lah data/backups || true
 
 ## 15. 防火墙报告规则
 
-如果本机 `curl -k https://$VPS_IP:$ACCESS_PORT/healthz` 成功，但根据第 7 节检查发现防火墙未放行或状态不确定：
+如果本机 `curl -k https://$VPS_IP:$PORT/healthz` 成功，但根据第 7 节检查发现防火墙未放行或状态不确定：
 
 **不要修改防火墙。**
 
@@ -655,16 +665,16 @@ ls -lah data/backups || true
 
 ```text
 程序已经部署并在 VPS 本机正常运行。
-当前访问端口：<ACCESS_PORT>/tcp
+当前访问端口：<PORT>/tcp
 检测到该端口在 VPS 防火墙中未明确放行（或无法确认）。
-请你手动在 VPS 防火墙/云厂商安全组中开放 TCP <ACCESS_PORT> 入站端口。
-开放后访问：https://<VPS_IP>:<ACCESS_PORT>
+请你手动在 VPS 防火墙/云厂商安全组中开放 TCP <PORT> 入站端口。
+开放后访问：https://<VPS_IP>:<PORT>
 ```
 
 如果本机防火墙确认已放行，但用户外部仍无法访问，报告：
 
 ```text
-VPS 本机服务和本机防火墙检查正常，请检查云厂商控制台的 Security Group / Firewall / ACL 是否允许 TCP <ACCESS_PORT> 入站。
+VPS 本机服务和本机防火墙检查正常，请检查云厂商控制台的 Security Group / Firewall / ACL 是否允许 TCP <PORT> 入站。
 ```
 
 ---
@@ -674,7 +684,7 @@ VPS 本机服务和本机防火墙检查正常，请检查云厂商控制台的 
 访问：
 
 ```text
-https://<VPS_IP>:<ACCESS_PORT>
+https://<VPS_IP>:<PORT>
 ```
 
 由于当前阶段没有域名，Caddy 使用内部 CA 签发临时证书，浏览器通常会显示证书风险提示。
@@ -710,6 +720,18 @@ git status --short
 
 注意：`Caddyfile.ip`、`compose.ip.yaml`、`.env` 和 `data/` 应保持为本机部署文件/忽略文件，不应提交。
 
+### 从旧版双端口配置迁移（仅执行一次）
+
+如果现有部署仍包含 `ACCESS_PORT`，或 `compose.ip.yaml` 中仍硬编码内部端口 `3000`，不能只拉取新镜像。先执行 `git pull --ff-only origin main`，然后按本文档第 12 节重新生成 `Caddyfile.ip` 与 `compose.ip.yaml`。
+
+迁移后 `.env` 中删除旧的 `ACCESS_PORT=...`，并只保留一个端口配置，例如：
+
+```text
+PORT=7001
+```
+
+以后需要换端口也只改这一行。数据库目录 `data/` 不需要、也禁止删除。
+
 ### 日常应用升级（推荐）
 
 确保 `.env` 使用：
@@ -730,7 +752,7 @@ sed -i 's#^LEDGER_IMAGE=.*#LEDGER_IMAGE=ghcr.io/iami315/financial:latest#' .env
 $SUDO docker compose --env-file .env -f compose.ip.yaml pull
 $SUDO docker compose --env-file .env -f compose.ip.yaml up -d
 $SUDO docker compose --env-file .env -f compose.ip.yaml ps
-curl -kfsS "https://${VPS_IP}:${ACCESS_PORT}/healthz"
+curl -kfsS "https://${VPS_IP}:${PORT}/healthz"
 ```
 
 这里不需要在 VPS 上 `docker build`。GitHub Actions 已经完成构建，VPS 只负责拉取并重新创建容器。
@@ -815,8 +837,8 @@ docker system prune -a --volumes
 - [ ] `data/` 持久化目录存在且可写
 - [ ] `app` 容器 running + healthy
 - [ ] `caddy` 容器 running
-- [ ] 宿主机正在监听 `$ACCESS_PORT/tcp`
-- [ ] `curl -k https://$VPS_IP:$ACCESS_PORT/healthz` 成功
+- [ ] 宿主机正在监听 `$PORT/tcp`
+- [ ] `curl -k https://$VPS_IP:$PORT/healthz` 成功
 - [ ] 首页可返回成功 HTTP 响应
 - [ ] 已检查防火墙状态且没有擅自修改防火墙
 - [ ] 最终报告包含实际 IP、端口、Git SHA、镜像标签和防火墙结论
@@ -839,7 +861,7 @@ Docker 镜像：ghcr.io/iami315/financial:latest
 Caddy：running
 健康检查：通过
 
-访问地址：https://<VPS_IP>:<ACCESS_PORT>
+访问地址：https://<VPS_IP>:<PORT>
 
 临时管理员：
 用户名：admin
@@ -853,7 +875,7 @@ Caddy：running
 如果端口未放行，再追加：
 
 ```text
-需要你手动开放 TCP <ACCESS_PORT> 入站端口。
+需要你手动开放 TCP <PORT> 入站端口。
 我没有修改 VPS 防火墙。
 如果 VPS 本机防火墙已放行但仍无法访问，请同时检查云厂商安全组。
 ```

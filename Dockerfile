@@ -28,5 +28,5 @@ COPY --from=build /app/packages/database/dist ./packages/database/dist
 COPY --from=build /app/packages/database/drizzle ./packages/database/drizzle
 RUN mkdir -p /data/backups && chown -R node:node /app /data
 USER node
-EXPOSE 3000
+EXPOSE 7001
 CMD ["node", "apps/server/dist/index.js"]
