@@ -24,14 +24,21 @@ pnpm check
 2. 生成至少 32 字符的随机 `APP_SECRET`。
 3. 设置初始 `ADMIN_USERNAME` / `ADMIN_PASSWORD`。管理员首次创建后，`.env` 中的初始密码不再决定真实登录密码。
 4. 将 `SITE_HOST` 设置为已经解析到 VPS 的域名。
-5. 将 `LEDGER_IMAGE` 固定到已发布的版本标签或镜像 digest。
+5. 默认将 `LEDGER_IMAGE` 设置为 `ghcr.io/iami315/financial:latest`，以便 VPS 始终拉取 `main` 最新成功构建；需要回滚时可临时改用保留的 `sha-xxxxxxx` 标签。
 6. 创建持久化目录并允许容器中的非 root 用户写入：`mkdir -p data && chown 1000:1000 data`。
 7. 运行 `docker compose pull && docker compose up -d`。
 8. 访问 `/healthz`，再登录管理员账号核对系统状态。
 
 ## GitHub Actions
 
-仓库已经启用 `.github/workflows/ci.yml`。推送到 `main` 后会先执行 `pnpm check`，通过后使用 Docker Buildx 构建镜像并推送到 GHCR；`ci.workflow.yml` 保留为同内容的便携模板。
+仓库已经启用 `.github/workflows/ci.yml`。推送到 `main` 后会先执行 `pnpm check`，通过后使用 Docker Buildx 构建镜像并推送到 GHCR，同时发布 `latest` 与 `sha-xxxxxxx` 两类标签；`latest` 用于日常升级，SHA 标签用于精确回滚。`ci.workflow.yml` 保留为同内容的便携模板。
+
+VPS 日常升级应用无需重新构建源码：
+
+```bash
+docker compose pull
+docker compose up -d
+```
 
 ## 数据、备份与迁移
 

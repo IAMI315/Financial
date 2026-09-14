@@ -1,6 +1,6 @@
 services:
   app:
-    image: ${LEDGER_IMAGE}
+    image: ${LEDGER_IMAGE:-ghcr.io/iami315/financial:latest}
     restart: unless-stopped
     env_file: .env
     environment:

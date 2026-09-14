@@ -19,7 +19,7 @@ https://github.com/IAMI315/Financial.git
 容器镜像：
 
 ```text
-ghcr.io/iami315/financial:sha-<main 分支当前提交的 7 位短 SHA>
+ghcr.io/iami315/financial:latest
 ```
 
 推荐部署目录：
@@ -337,12 +337,14 @@ echo "FULL_SHA=$FULL_SHA"
 echo "SHORT_SHA=$SHORT_SHA"
 ```
 
-镜像设置为：
+应用镜像始终设置为 `main` 分支最近一次成功构建的 `latest`：
 
 ```bash
-LEDGER_IMAGE="ghcr.io/iami315/financial:sha-${SHORT_SHA}"
+LEDGER_IMAGE="ghcr.io/iami315/financial:latest"
 echo "LEDGER_IMAGE=$LEDGER_IMAGE"
 ```
+
+`FULL_SHA` / `SHORT_SHA` 仍用于最终报告和故障定位，但不再用于日常部署镜像选择。GitHub Actions 同时保留 `sha-xxxxxxx` 标签，必要时可用于精确回滚。
 
 ---
 
@@ -382,7 +384,7 @@ unset CR_PAT
 $SUDO docker pull "$LEDGER_IMAGE"
 ```
 
-如果镜像标签不存在，先确认 GitHub `main` 对应的 Actions `CI and Container` 是否构建成功。不要擅自回退到未知旧镜像。
+如果 `latest` 不存在或无法拉取，先确认 GitHub `main` 对应的 Actions `CI and Container` 是否构建成功。不要擅自回退到未知旧镜像。
 
 ---
 
@@ -498,7 +500,7 @@ EOF
 cat > compose.ip.yaml <<'EOF'
 services:
   app:
-    image: ${LEDGER_IMAGE}
+    image: ${LEDGER_IMAGE:-ghcr.io/iami315/financial:latest}
     restart: unless-stopped
     env_file: .env
     environment:
@@ -708,40 +710,37 @@ git status --short
 
 注意：`Caddyfile.ip`、`compose.ip.yaml`、`.env` 和 `data/` 应保持为本机部署文件/忽略文件，不应提交。
 
-更新源码：
+### 日常应用升级（推荐）
 
-```bash
-git fetch origin
-git checkout main
-git pull --ff-only origin main
-```
-
-重新计算镜像：
-
-```bash
-SHORT_SHA="$(git rev-parse --short=7 HEAD)"
-NEW_IMAGE="ghcr.io/iami315/financial:sha-${SHORT_SHA}"
-```
-
-修改 `.env` 中：
+确保 `.env` 使用：
 
 ```text
-LEDGER_IMAGE=<NEW_IMAGE>
+LEDGER_IMAGE=ghcr.io/iami315/financial:latest
 ```
 
-可使用：
+如果这是从旧的 SHA 固定镜像迁移到 `latest`，只需要执行一次：
 
 ```bash
-sed -i "s#^LEDGER_IMAGE=.*#LEDGER_IMAGE=${NEW_IMAGE}#" .env
+sed -i 's#^LEDGER_IMAGE=.*#LEDGER_IMAGE=ghcr.io/iami315/financial:latest#' .env
 ```
 
-然后：
+之后每次 GitHub `main` 的 Actions 构建成功，VPS 日常升级只需要：
 
 ```bash
 $SUDO docker compose --env-file .env -f compose.ip.yaml pull
 $SUDO docker compose --env-file .env -f compose.ip.yaml up -d
 $SUDO docker compose --env-file .env -f compose.ip.yaml ps
 curl -kfsS "https://${VPS_IP}:${ACCESS_PORT}/healthz"
+```
+
+这里不需要在 VPS 上 `docker build`。GitHub Actions 已经完成构建，VPS 只负责拉取并重新创建容器。
+
+只有当 `compose.ip.yaml`、Caddy 配置或部署文档本身发生变化时，才需要额外更新仓库源码：
+
+```bash
+git fetch origin
+git checkout main
+git pull --ff-only origin main
 ```
 
 更新过程中禁止删除 `data/`。
@@ -811,7 +810,7 @@ docker system prune -a --volumes
 - [ ] Docker Engine 正常
 - [ ] Docker Compose Plugin 正常
 - [ ] GitHub 仓库代码获取成功
-- [ ] 对应 SHA 的 GHCR 镜像拉取成功
+- [ ] GHCR `latest` 镜像拉取成功
 - [ ] `.env` 已安全创建，权限为 600
 - [ ] `data/` 持久化目录存在且可写
 - [ ] `app` 容器 running + healthy
@@ -835,7 +834,7 @@ Financial Ledger 已部署完成。
 
 部署目录：/opt/financial
 Git Commit：<FULL_SHA>
-Docker 镜像：ghcr.io/iami315/financial:sha-<SHORT_SHA>
+Docker 镜像：ghcr.io/iami315/financial:latest
 应用容器：healthy
 Caddy：running
 健康检查：通过
