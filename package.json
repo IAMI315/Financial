@@ -1,0 +1,33 @@
+{
+  "name": "financial-ledger",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@11.7.0",
+  "engines": {
+    "node": ">=22.20.0"
+  },
+  "scripts": {
+    "build:packages": "pnpm --filter @financial/domain build && pnpm --filter @financial/database build",
+    "dev": "pnpm build:packages && pnpm --parallel --filter @financial/server --filter @financial/web dev",
+    "typecheck": "pnpm -r --if-present typecheck",
+    "lint": "eslint . --max-warnings=0",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "pnpm build:packages && vitest run",
+    "build": "pnpm build:packages && pnpm --filter @financial/server build && pnpm --filter @financial/web build",
+    "db:generate": "pnpm --filter @financial/database db:generate",
+    "db:migrate": "pnpm --filter @financial/database db:migrate",
+    "check": "pnpm typecheck && pnpm lint && pnpm test && pnpm build"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.5.1",
+    "eslint": "^10.10.0",
+    "globals": "^17.12.0",
+    "prettier": "^3.9.6",
+    "typescript": "6.0.3",
+    "typescript-eslint": "^8.70.0",
+    "vitest": "^5.0.0"
+  }
+}

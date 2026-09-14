@@ -1,0 +1,12 @@
+{
+  "name": "轻账本 · Financial Ledger",
+  "short_name": "轻账本",
+  "description": "自托管的轻量个人收支账本",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#f5f7fb",
+  "theme_color": "#f5f7fb",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
