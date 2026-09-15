@@ -181,6 +181,7 @@ describe('V1 API integration', () => {
     expect(statsBody).toMatchObject({ incomeFen: 10_000, expenseFen: 1_000, balanceFen: 9_000 });
     expect(statsBody.expenseCategories).toEqual([{ id: food.id, name: '餐饮', amountFen: 1_000 }]);
     expect(statsBody.incomeCategories).toEqual([{ id: salary.id, name: '工资', amountFen: 10_000 }]);
+    expect(statsBody.dailyIncome).toEqual([{ date: '2026-02-02', amountFen: 10_000 }]);
     expect(statsBody.dailyExpense).toEqual([{ date: '2026-02-01', amountFen: 1_000 }]);
 
     const analysis = await app.inject({

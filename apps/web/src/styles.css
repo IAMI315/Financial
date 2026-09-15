@@ -176,10 +176,18 @@ details textarea { margin-top: 8px; }
 .rank-label span { color: var(--muted); font-size: 12px; }
 .bar { height: 6px; border-radius: 99px; background: #eef1f5; overflow: hidden; }
 .bar i { display: block; height: 100%; border-radius: inherit; background: #6488da; }
+.trend-panel-title { align-items: center; }
+.trend-legend { display: flex; flex-wrap: wrap; gap: 12px; color: var(--muted); font-size: 11px; font-weight: 650; }
+.trend-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.trend-legend-dot { width: 8px; height: 8px; border-radius: 50%; }
+.trend-legend-dot.income, .daily-trend-columns i.income { background: #2f9e67; }
+.trend-legend-dot.expense, .daily-trend-columns i.expense { background: #e58a32; }
 .daily-bars { min-height: 190px; display: flex; align-items: end; gap: 5px; overflow-x: auto; padding-top: 20px; }
-.daily-bar { flex: 1 0 18px; height: 160px; display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 5px; }
-.daily-bar i { width: min(14px, 80%); border-radius: 5px 5px 2px 2px; background: #7795dc; }
-.daily-bar span { color: #8a93a3; font-size: 9px; }
+.trend-bars { gap: 7px; }
+.daily-trend-day { flex: 1 0 24px; height: 160px; display: flex; flex-direction: column; align-items: center; justify-content: end; gap: 5px; }
+.daily-trend-columns { width: 100%; min-height: 0; flex: 1; display: flex; align-items: end; justify-content: center; gap: 2px; }
+.daily-trend-columns i { width: min(7px, 42%); min-height: 0; border-radius: 4px 4px 2px 2px; transition: height .18s ease; }
+.daily-trend-day > span { color: #8a93a3; font-size: 9px; }
 .tag-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .data-tag { border: 1px solid var(--border); border-radius: 999px; background: #fafbfc; padding: 7px 10px; color: #59657a; font-size: 12px; }
 .transaction-load-more { display: flex; justify-content: center; margin-top: 16px; }

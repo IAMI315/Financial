@@ -776,14 +776,15 @@ export function getTransactionStatsForRange(handle: DatabaseHandle, userId: numb
 
   const dailyRows = handle.sqlite
     .prepare(
-      `select strftime('%Y-%m-%d', occurred_at / 1000.0, 'unixepoch', '+8 hours') as date,
+      `select type,
+              strftime('%Y-%m-%d', occurred_at / 1000.0, 'unixepoch', '+8 hours') as date,
               sum(amount_fen) as amount_fen
        from transactions
-       where user_id = ? and type = 'expense' and occurred_at >= ? and occurred_at < ?
-       group by date
-       order by date`,
+       where user_id = ? and occurred_at >= ? and occurred_at < ?
+       group by type, date
+       order by date, type`,
     )
-    .all(userId, from, to) as Array<{ date: string; amount_fen: number }>;
+    .all(userId, from, to) as Array<{ type: TransactionType; date: string; amount_fen: number }>;
 
   const mapCategory = (row: (typeof categoryRows)[number]) => ({
     id: Number(row.id),
@@ -803,7 +804,12 @@ export function getTransactionStatsForRange(handle: DatabaseHandle, userId: numb
       amountFen: Number(row.amount_fen),
       type: row.type,
     })),
-    dailyExpense: dailyRows.map((row) => ({ date: row.date, amountFen: Number(row.amount_fen) })),
+    dailyIncome: dailyRows
+      .filter((row) => row.type === 'income')
+      .map((row) => ({ date: row.date, amountFen: Number(row.amount_fen) })),
+    dailyExpense: dailyRows
+      .filter((row) => row.type === 'expense')
+      .map((row) => ({ date: row.date, amountFen: Number(row.amount_fen) })),
   };
 }
 

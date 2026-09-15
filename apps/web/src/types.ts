@@ -57,6 +57,7 @@ export type MonthlyStats = {
     amountFen: number;
     type: TransactionType;
   }>;
+  dailyIncome: Array<{ date: string; amountFen: number }>;
   dailyExpense: Array<{ date: string; amountFen: number }>;
 };
 

@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { api, currentShanghaiMonth, money } from '../api';
 import { QuickEntry } from '../components/QuickEntry';
+import { IncomeExpenseTrend } from '../components/IncomeExpenseTrend';
 import type { Category, MonthlyStats, Transaction } from '../types';
 
 export function HomePage() {
@@ -37,6 +38,7 @@ export function HomePage() {
           <article className="metric"><span>本月支出</span><strong>{money(stats?.expenseFen ?? 0)}</strong></article>
           <article className="metric emphasis"><span>本月结余</span><strong>{money(stats?.balanceFen ?? 0)}</strong></article>
         </section>
+        <IncomeExpenseTrend stats={stats} title="本月收支趋势" />
         <section className="panel">
           <div className="panel-title"><div><span className="eyebrow">最近交易</span><h2>最近 10 条</h2></div></div>
           {recent.length === 0 && <p className="empty">还没有交易，先记第一笔吧。</p>}
