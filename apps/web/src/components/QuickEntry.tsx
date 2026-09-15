@@ -134,30 +134,32 @@ export function QuickEntry({ categories, onSaved, onCategoryCreated }: { categor
         <button type="button" className={type === 'income' ? 'active' : ''} onClick={() => switchType('income')}>收入</button>
       </div>
       <div className="money-field"><span>¥</span><input value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" placeholder="0.00" aria-label="金额" /></div>
-      <div className="category-section-title"><span>一级分类</span></div>
-      <div ref={categoryGridRef} className={children.length > 0 && categoryId !== '' ? 'category-grid has-subcategory-panel' : 'category-grid'}>
-        {roots.map((category) => {
-          const selected = categoryId === category.id;
-          const hasChildren = categories.some((item) => item.parentId === category.id && !item.isArchived);
-          return (
-            <button key={category.id} data-category-id={category.id} type="button" aria-expanded={selected && hasChildren} className={selected ? 'category-chip selected' : 'category-chip'} onClick={() => selectRootCategory(category)}>
-              <span className="category-chip-label">{category.name}</span><span className={selected && hasChildren ? 'category-chevron expanded' : 'category-chevron'} aria-hidden="true" />
-            </button>
-          );
-        })}
-        <button type="button" className="category-chip add-category-chip" onClick={() => { setAddingCategory(true); setCategoryId(''); setSubcategoryId(''); setError(''); }}>＋ 增加新分类</button>
-        {children.length > 0 && categoryId !== '' && subcategoryPanelTop !== null && (
-          <div className="subcategory-panel" style={{ top: subcategoryPanelTop }}>
-            <div className="subcategory-panel-title">二级分类 <span>可选</span></div>
-            <div className="subcategory-grid">
-              {children.map((item) => (
-                <button key={item.id} type="button" className={subcategoryId === item.id ? 'subcategory-chip selected' : 'subcategory-chip'} onClick={() => setSubcategoryId(subcategoryId === item.id ? '' : item.id)}>{item.name}</button>
-              ))}
+      <div className="category-workspace">
+        <div className="category-section-title"><span>一级分类</span></div>
+        <div ref={categoryGridRef} className="category-grid">
+          {roots.map((category) => {
+            const selected = categoryId === category.id;
+            const hasChildren = categories.some((item) => item.parentId === category.id && !item.isArchived);
+            return (
+              <button key={category.id} data-category-id={category.id} type="button" aria-expanded={selected && hasChildren} className={selected ? 'category-chip selected' : 'category-chip'} onClick={() => selectRootCategory(category)}>
+                <span className="category-chip-label">{category.name}</span><span className={selected && hasChildren ? 'category-chevron expanded' : 'category-chevron'} aria-hidden="true" />
+              </button>
+            );
+          })}
+          <button type="button" className="category-chip add-category-chip" onClick={() => { setAddingCategory(true); setCategoryId(''); setSubcategoryId(''); setError(''); }}>＋ 增加新分类</button>
+          {children.length > 0 && categoryId !== '' && subcategoryPanelTop !== null && (
+            <div className="subcategory-panel" style={{ top: subcategoryPanelTop }}>
+              <div className="subcategory-panel-title">二级分类 <span>可选</span></div>
+              <div className="subcategory-grid">
+                {children.map((item) => (
+                  <button key={item.id} type="button" className={subcategoryId === item.id ? 'subcategory-chip selected' : 'subcategory-chip'} onClick={() => setSubcategoryId(subcategoryId === item.id ? '' : item.id)}>{item.name}</button>
+                ))}
+              </div>
             </div>
-          </div>
-        )}
+          )}
+        </div>
+        {addingCategory && <div className="quick-category-form"><input autoFocus value={newCategoryName} maxLength={40} placeholder={`新增${type === 'expense' ? '支出' : '收入'}一级分类`} onChange={(event) => setNewCategoryName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void createRootCategory(); if (event.key === 'Escape') { setAddingCategory(false); setNewCategoryName(''); } }} /><button type="button" className="primary" disabled={creatingCategory} onClick={() => void createRootCategory()}>{creatingCategory ? '添加中…' : '添加'}</button><button type="button" className="secondary" disabled={creatingCategory} onClick={() => { setAddingCategory(false); setNewCategoryName(''); }}>取消</button></div>}
       </div>
-      {addingCategory && <div className="quick-category-form"><input autoFocus value={newCategoryName} maxLength={40} placeholder={`新增${type === 'expense' ? '支出' : '收入'}一级分类`} onChange={(event) => setNewCategoryName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void createRootCategory(); if (event.key === 'Escape') { setAddingCategory(false); setNewCategoryName(''); } }} /><button type="button" className="primary" disabled={creatingCategory} onClick={() => void createRootCategory()}>{creatingCategory ? '添加中…' : '添加'}</button><button type="button" className="secondary" disabled={creatingCategory} onClick={() => { setAddingCategory(false); setNewCategoryName(''); }}>取消</button></div>}
       <label>交易时间<input type="datetime-local" step="1" value={occurredAtLocal} onChange={(event) => setOccurredAtLocal(event.target.value)} /></label>
       <details><summary>添加备注</summary><textarea rows={2} maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} placeholder="可选" /></details>
       {error && <div className="notice error">{error}</div>}
