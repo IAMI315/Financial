@@ -88,11 +88,11 @@ h3 { margin: 18px 0 7px; color: var(--muted); font-size: 12px; font-weight: 700;
 .money-field { display: flex; align-items: center; gap: 8px; margin: 10px 0 20px; border-bottom: 1px solid var(--border); }
 .money-field span { color: #667085; font-size: 32px; }
 .money-field input { border: 0; border-radius: 0; box-shadow: none !important; padding: 6px 0 10px; background: transparent; font-size: clamp(38px, 8vw, 52px); font-weight: 750; letter-spacing: -.04em; }
-.category-workspace { position: relative; height: 282px; margin-bottom: 14px; }
+.category-workspace { position: relative; height: 193px; margin-bottom: 14px; }
 .category-section-title { display: flex; align-items: center; gap: 8px; margin: 2px 0 8px; }
 .category-section-title::after { content: ''; height: 1px; flex: 1; background: #edf0f5; }
 .category-section-title span { color: #7a8497; font-size: 11px; font-weight: 800; letter-spacing: .05em; }
-.category-grid { position: relative; display: grid; height: 254px; grid-template-columns: repeat(4, 1fr); align-content: start; gap: 7px; overflow-x: hidden; overflow-y: auto; padding-right: 2px; scrollbar-gutter: stable; }
+.category-grid { position: relative; display: grid; height: 165px; grid-template-columns: repeat(4, 1fr); align-content: start; gap: 7px; overflow-x: hidden; overflow-y: auto; padding-right: 2px; scrollbar-gutter: stable; }
 .category-chip { display: flex; min-width: 0; min-height: 36px; align-items: center; justify-content: space-between; gap: 7px; border: 1px solid var(--border); border-radius: 9px; background: #fafbfc; padding: 6px 8px; color: #566075; font-size: 12px; font-weight: 500; line-height: 1.2; }
 .category-chip-label { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .category-chip.selected { border-color: #92abe4; background: var(--primary-soft); color: #2859bb; }
@@ -265,8 +265,8 @@ details textarea { margin-top: 8px; }
   .metric { padding: 12px 10px; border-radius: 14px; }
   .metric strong { font-size: 16px; }
   .metric span { font-size: 10px; }
-  .category-workspace { height: 348px; }
-  .category-grid { max-height: 320px; grid-template-columns: repeat(3, 1fr); }
+  .category-workspace { height: 193px; }
+  .category-grid { height: 165px; grid-template-columns: repeat(3, 1fr); }
   .subcategory-panel { height: 92px; }
   .subcategory-grid { grid-template-columns: repeat(3, 1fr); }
   .quick-category-form { grid-template-columns: 1fr auto; }

@@ -33,14 +33,34 @@ export function QuickEntry({ categories, onSaved, onCategoryCreated }: { categor
       setSubcategoryPanelTop(null);
       return;
     }
+    let scrollFrame = 0;
     const updatePanelPosition = () => {
       const button = grid.querySelector<HTMLElement>(`[data-category-id="${categoryId}"]`);
-      setSubcategoryPanelTop(button ? button.offsetTop + button.offsetHeight + 7 : null);
+      const panelTop = button ? button.offsetTop + button.offsetHeight + 7 : null;
+      setSubcategoryPanelTop(panelTop);
+      if (button && panelTop !== null) {
+        cancelAnimationFrame(scrollFrame);
+        scrollFrame = requestAnimationFrame(() => {
+          const panel = grid.querySelector<HTMLElement>('.subcategory-panel');
+          if (!panel) return;
+          const visibleTop = grid.scrollTop;
+          const visibleBottom = visibleTop + grid.clientHeight;
+          const panelBottom = panel.offsetTop + panel.offsetHeight;
+          if (button.offsetTop < visibleTop) {
+            grid.scrollTo({ top: Math.max(0, button.offsetTop - 4), behavior: 'smooth' });
+          } else if (panelBottom > visibleBottom) {
+            grid.scrollTo({ top: panelBottom - grid.clientHeight + 4, behavior: 'smooth' });
+          }
+        });
+      }
     };
     updatePanelPosition();
     const observer = new ResizeObserver(updatePanelPosition);
     observer.observe(grid);
-    return () => observer.disconnect();
+    return () => {
+      cancelAnimationFrame(scrollFrame);
+      observer.disconnect();
+    };
   }, [categoryId, children.length, roots.length]);
 
   function switchType(nextType: TransactionType) {
