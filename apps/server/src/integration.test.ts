@@ -177,7 +177,11 @@ describe('V1 API integration', () => {
     }
 
     const stats = await app.inject({ method: 'GET', url: '/api/stats/monthly?month=2026-02', headers: { cookie: user.cookie } });
-    expect(stats.json()).toMatchObject({ incomeFen: 10_000, expenseFen: 1_000, balanceFen: 9_000 });
+    const statsBody = stats.json();
+    expect(statsBody).toMatchObject({ incomeFen: 10_000, expenseFen: 1_000, balanceFen: 9_000 });
+    expect(statsBody.expenseCategories).toEqual([{ id: food.id, name: '餐饮', amountFen: 1_000 }]);
+    expect(statsBody.incomeCategories).toEqual([{ id: salary.id, name: '工资', amountFen: 10_000 }]);
+    expect(statsBody.dailyExpense).toEqual([{ date: '2026-02-01', amountFen: 1_000 }]);
 
     const analysis = await app.inject({
       method: 'POST',

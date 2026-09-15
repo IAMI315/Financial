@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api';
 import { MonthlyTransactionTables } from '../components/MonthlyTransactionTables';
 import type { Transaction, User } from '../types';
@@ -10,23 +10,12 @@ type TransactionList = {
   pageSize: number;
 };
 
-async function loadAllUserTransactions(userId: number): Promise<Transaction[]> {
-  const first = await api<TransactionList>(`/api/admin/users/${userId}/transactions?page=1&pageSize=100`);
-  const pages = Math.ceil(first.total / first.pageSize);
-  if (pages <= 1) return first.items;
-  const rest = await Promise.all(
-    Array.from({ length: pages - 1 }, (_, index) =>
-      api<TransactionList>(`/api/admin/users/${userId}/transactions?page=${index + 2}&pageSize=100`),
-    ),
-  );
-  return first.items.concat(...rest.map((page) => page.items));
-}
-
 export function AdminUserViewPage() {
   const [users, setUsers] = useState<User[]>([]);
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
-  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [result, setResult] = useState<TransactionList>({ items: [], total: 0, page: 1, pageSize: 100 });
   const [loading, setLoading] = useState(false);
+  const requestId = useRef(0);
   const [message, setMessage] = useState('');
 
   useEffect(() => {
@@ -39,17 +28,30 @@ export function AdminUserViewPage() {
       .catch((error: unknown) => setMessage(error instanceof Error ? error.message : '用户列表加载失败'));
   }, []);
 
-  useEffect(() => {
-    if (selectedUserId == null) {
-      setTransactions([]);
-      return;
-    }
+  async function loadPage(userId: number, page: number, append = false) {
+    const currentRequest = append ? requestId.current : ++requestId.current;
     setLoading(true);
     setMessage('');
-    void loadAllUserTransactions(selectedUserId)
-      .then(setTransactions)
-      .catch((error: unknown) => setMessage(error instanceof Error ? error.message : '流水加载失败'))
-      .finally(() => setLoading(false));
+    try {
+      const pageResult = await api<TransactionList>(`/api/admin/users/${userId}/transactions?page=${page}&pageSize=100`);
+      if (currentRequest !== requestId.current) return;
+      setResult((current) => append
+        ? { ...pageResult, items: [...current.items, ...pageResult.items] }
+        : pageResult);
+    } catch (error) {
+      if (currentRequest === requestId.current) setMessage(error instanceof Error ? error.message : '流水加载失败');
+    } finally {
+      if (currentRequest === requestId.current) setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    if (selectedUserId == null) {
+      requestId.current += 1;
+      setResult({ items: [], total: 0, page: 1, pageSize: 100 });
+      return;
+    }
+    void loadPage(selectedUserId, 1);
   }, [selectedUserId]);
 
   const selectedUser = useMemo(
@@ -78,9 +80,10 @@ export function AdminUserViewPage() {
       <section className="panel">
         <div className="panel-title">
           <div><span className="eyebrow">只读流水</span><h2>{selectedUser ? `${selectedUser.username} 的流水` : '请选择用户'}</h2></div>
-          {selectedUser && <span className="muted">共 {transactions.length} 笔</span>}
+          {selectedUser && <span className="muted">共 {result.total} 笔 · 已显示 {result.items.length}</span>}
         </div>
-        {loading ? <p className="empty">正在加载流水…</p> : <MonthlyTransactionTables items={transactions} readOnly />}
+        {loading && result.items.length === 0 ? <p className="empty">正在加载流水…</p> : <MonthlyTransactionTables items={result.items} readOnly />}
+        {selectedUserId != null && result.items.length < result.total && <div className="transaction-load-more"><button className="secondary" disabled={loading} onClick={() => void loadPage(selectedUserId, result.page + 1, true)}>{loading ? '加载中…' : '加载更多'}</button></div>}
       </section>
     </div>
   );

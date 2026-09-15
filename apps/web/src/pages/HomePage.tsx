@@ -8,18 +8,19 @@ export function HomePage() {
   const [stats, setStats] = useState<MonthlyStats | null>(null);
   const [recent, setRecent] = useState<Transaction[]>([]);
 
-  const load = useCallback(async () => {
-    const [categoryResult, statResult, transactionResult] = await Promise.all([
-      api<{ categories: Category[] }>('/api/categories?includeArchived=false'),
+  const loadDashboard = useCallback(async () => {
+    const [statResult, transactionResult] = await Promise.all([
       api<MonthlyStats>(`/api/stats/monthly?month=${currentShanghaiMonth()}`),
       api<{ items: Transaction[] }>('/api/transactions?page=1&pageSize=10'),
     ]);
-    setCategories(categoryResult.categories);
     setStats(statResult);
     setRecent(transactionResult.items);
   }, []);
 
-  useEffect(() => { void load(); }, [load]);
+  useEffect(() => {
+    void api<{ categories: Category[] }>('/api/categories?includeArchived=false').then((result) => setCategories(result.categories));
+    void loadDashboard();
+  }, [loadDashboard]);
 
   const groups = recent.reduce<Record<string, Transaction[]>>((all, item) => {
     const day = item.occurredAtLocal.slice(0, 10);
@@ -29,7 +30,7 @@ export function HomePage() {
 
   return (
     <div className="page-grid home-grid">
-      <QuickEntry categories={categories} onSaved={() => void load()} onCategoryCreated={(category) => setCategories((current) => [...current, category])} />
+      <QuickEntry categories={categories} onSaved={() => void loadDashboard()} onCategoryCreated={(category) => setCategories((current) => [...current, category])} />
       <div className="dashboard-column">
         <section className="summary-grid">
           <article className="metric"><span>本月收入</span><strong>{money(stats?.incomeFen ?? 0)}</strong></article>

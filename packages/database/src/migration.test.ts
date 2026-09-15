@@ -58,7 +58,19 @@ describe('database migrations', () => {
     const migrationCount = rerun.sqlite
       .prepare('select count(*) as count from __drizzle_migrations')
       .get() as { count: number };
-    expect(migrationCount.count).toBe(1);
+    expect(migrationCount.count).toBe(2);
+    const transactionIndexes = rerun.sqlite
+      .prepare("select name from sqlite_master where type = 'index' and name like 'transactions_%' order by name")
+      .all() as Array<{ name: string }>;
+    expect(transactionIndexes.map((row) => row.name)).toEqual(
+      expect.arrayContaining([
+        'transactions_user_type_time_idx',
+        'transactions_user_category_time_idx',
+        'transactions_user_subcategory_time_idx',
+        'transactions_duplicate_lookup_idx',
+        'transactions_subcategory_idx',
+      ]),
+    );
     rerun.sqlite.close();
   });
 

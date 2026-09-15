@@ -125,8 +125,12 @@ export const transactions = sqliteTable(
   },
   (table) => [
     index('transactions_user_time_idx').on(table.userId, table.occurredAt),
-    index('transactions_user_type_idx').on(table.userId, table.type),
+    index('transactions_user_type_time_idx').on(table.userId, table.type, table.occurredAt),
+    index('transactions_user_category_time_idx').on(table.userId, table.categoryId, table.occurredAt),
+    index('transactions_user_subcategory_time_idx').on(table.userId, table.subcategoryId, table.occurredAt),
+    index('transactions_duplicate_lookup_idx').on(table.userId, table.type, table.amountFen, table.occurredAt),
     index('transactions_category_idx').on(table.categoryId),
+    index('transactions_subcategory_idx').on(table.subcategoryId),
     index('transactions_import_batch_idx').on(table.importBatchId),
     check('transactions_type_check', sql`${table.type} in ('income', 'expense')`),
     check('transactions_amount_positive_check', sql`${table.amountFen} > 0`),

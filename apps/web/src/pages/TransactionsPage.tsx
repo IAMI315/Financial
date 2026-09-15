@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api, download, shanghaiNowLocal } from '../api';
 import { MonthlyTransactionTables } from '../components/MonthlyTransactionTables';
 import type { Category, Transaction, TransactionType } from '../types';
@@ -24,32 +24,43 @@ export function TransactionsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [result, setResult] = useState<TransactionList>({ items: [], total: 0, page: 1, pageSize: 100 });
   const [filters, setFilters] = useState({ from: '', to: '', type: '', categoryId: '', subcategoryId: '', keyword: '' });
+  const [debouncedKeyword, setDebouncedKeyword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const requestId = useRef(0);
   const [edit, setEdit] = useState<EditState | null>(null);
   const [message, setMessage] = useState('');
 
+  useEffect(() => {
+    const timer = window.setTimeout(() => setDebouncedKeyword(filters.keyword.trim()), 300);
+    return () => window.clearTimeout(timer);
+  }, [filters.keyword]);
+
   const search = useMemo(() => {
     const params = new URLSearchParams();
-    Object.entries(filters).forEach(([key, value]) => { if (value) params.set(key, value); });
+    const values = { ...filters, keyword: debouncedKeyword };
+    Object.entries(values).forEach(([key, value]) => { if (value) params.set(key, value); });
     return params.toString();
-  }, [filters]);
+  }, [filters, debouncedKeyword]);
 
-  async function load() {
+  async function loadPage(page: number, append = false) {
+    const currentRequest = append ? requestId.current : ++requestId.current;
     const prefix = search ? `${search}&` : '';
-    const [categoryResult, firstPage] = await Promise.all([
-      api<{ categories: Category[] }>('/api/categories'),
-      api<TransactionList>(`/api/transactions?${prefix}page=1&pageSize=100`),
-    ]);
-    const totalPages = Math.ceil(firstPage.total / firstPage.pageSize);
-    const remainingPages = totalPages > 1
-      ? await Promise.all(Array.from({ length: totalPages - 1 }, (_, index) =>
-          api<TransactionList>(`/api/transactions?${prefix}page=${index + 2}&pageSize=100`),
-        ))
-      : [];
-    setCategories(categoryResult.categories);
-    setResult({ ...firstPage, items: firstPage.items.concat(...remainingPages.map((pageResult) => pageResult.items)) });
+    setLoading(true);
+    try {
+      const pageResult = await api<TransactionList>(`/api/transactions?${prefix}page=${page}&pageSize=100`);
+      if (currentRequest !== requestId.current) return;
+      setResult((current) => append
+        ? { ...pageResult, items: [...current.items, ...pageResult.items] }
+        : pageResult);
+    } finally {
+      if (currentRequest === requestId.current) setLoading(false);
+    }
   }
 
-  useEffect(() => { void load(); }, [search]);
+  useEffect(() => {
+    void api<{ categories: Category[] }>('/api/categories').then((result) => setCategories(result.categories));
+  }, []);
+  useEffect(() => { void loadPage(1); }, [search]);
 
   const rootCategories = categories.filter((item) => item.parentId === null && (!filters.type || item.type === filters.type));
   const subcategories = categories.filter((item) => item.parentId === Number(filters.categoryId));
@@ -77,7 +88,7 @@ export function TransactionsPage() {
       });
       setEdit(null);
       setMessage('交易已更新');
-      await load();
+      await loadPage(1);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : '保存失败');
     }
@@ -87,7 +98,7 @@ export function TransactionsPage() {
     if (!window.confirm(`永久删除“${item.categoryName} ${item.amount}”这笔交易？此操作不可恢复。`)) return;
     await api(`/api/transactions/${item.id}`, { method: 'DELETE' });
     setMessage('交易已永久删除');
-    await load();
+    await loadPage(1);
   }
 
   return (
@@ -105,13 +116,14 @@ export function TransactionsPage() {
       </section>
 
       <section className="panel">
-        <div className="panel-title"><div><span className="eyebrow">结果</span><h2>{result.total} 笔交易</h2></div></div>
+        <div className="panel-title"><div><span className="eyebrow">结果</span><h2>{result.total} 笔交易</h2></div><span className="muted">已显示 {result.items.length} / {result.total}</span></div>
         {message && <div className="notice">{message}</div>}
-        <MonthlyTransactionTables
+        {loading && result.items.length === 0 ? <p className="empty">正在加载流水…</p> : <MonthlyTransactionTables
           items={result.items}
           onEdit={(item) => setEdit({ id: item.id, type: item.type, amount: item.amount, categoryId: item.categoryId, subcategoryId: item.subcategoryId ?? '', occurredAtLocal: item.occurredAtLocal, note: item.note ?? '' })}
           onDelete={(item) => void remove(item)}
-        />
+        />}
+        {result.items.length < result.total && <div className="transaction-load-more"><button className="secondary" disabled={loading} onClick={() => void loadPage(result.page + 1, true)}>{loading ? '加载中…' : '加载更多'}</button></div>}
       </section>
 
       {edit && (

@@ -722,11 +722,89 @@ export function listTransactions(
 }
 
 export function listTransactionsForRange(handle: DatabaseHandle, userId: number, from: number, to: number): TransactionRecord[] {
-  return listTransactions(handle, userId, { from, to, page: 1, pageSize: 100 }).items.concat(
-    ...Array.from({ length: Math.max(0, Math.ceil((Number((handle.sqlite.prepare('select count(*) as count from transactions where user_id = ? and occurred_at >= ? and occurred_at < ?').get(userId, from, to) as { count: number }).count) - 100) / 100)) }, (_, index) =>
-      listTransactions(handle, userId, { from, to, page: index + 2, pageSize: 100 }).items,
-    ),
-  );
+  const rows = handle.sqlite
+    .prepare(
+      `select t.*, c.name as category_name, sc.name as subcategory_name
+       from transactions t
+       join categories c on c.id = t.category_id
+       left join categories sc on sc.id = t.subcategory_id
+       where t.user_id = ? and t.occurred_at >= ? and t.occurred_at < ?
+       order by t.occurred_at desc, t.id desc`,
+    )
+    .all(userId, from, to) as Array<Record<string, unknown>>;
+  return rows.map(mapTransaction);
+}
+
+export function getTransactionStatsForRange(handle: DatabaseHandle, userId: number, from: number, to: number) {
+  const totals = handle.sqlite
+    .prepare(
+      `select
+         coalesce(sum(case when type = 'income' then amount_fen else 0 end), 0) as income_fen,
+         coalesce(sum(case when type = 'expense' then amount_fen else 0 end), 0) as expense_fen
+       from transactions
+       where user_id = ? and occurred_at >= ? and occurred_at < ?`,
+    )
+    .get(userId, from, to) as { income_fen: number; expense_fen: number };
+
+  const categoryRows = handle.sqlite
+    .prepare(
+      `select t.type, t.category_id as id, c.name, sum(t.amount_fen) as amount_fen
+       from transactions t
+       join categories c on c.id = t.category_id
+       where t.user_id = ? and t.occurred_at >= ? and t.occurred_at < ?
+       group by t.type, t.category_id, c.name
+       order by amount_fen desc`,
+    )
+    .all(userId, from, to) as Array<{ type: TransactionType; id: number; name: string; amount_fen: number }>;
+
+  const subcategoryRows = handle.sqlite
+    .prepare(
+      `select t.type, t.subcategory_id as id, t.category_id as parent_id, sc.name, sum(t.amount_fen) as amount_fen
+       from transactions t
+       join categories sc on sc.id = t.subcategory_id
+       where t.user_id = ? and t.occurred_at >= ? and t.occurred_at < ? and t.subcategory_id is not null
+       group by t.type, t.subcategory_id, t.category_id, sc.name
+       order by amount_fen desc`,
+    )
+    .all(userId, from, to) as Array<{
+      type: TransactionType;
+      id: number;
+      parent_id: number;
+      name: string;
+      amount_fen: number;
+    }>;
+
+  const dailyRows = handle.sqlite
+    .prepare(
+      `select strftime('%Y-%m-%d', occurred_at / 1000.0, 'unixepoch', '+8 hours') as date,
+              sum(amount_fen) as amount_fen
+       from transactions
+       where user_id = ? and type = 'expense' and occurred_at >= ? and occurred_at < ?
+       group by date
+       order by date`,
+    )
+    .all(userId, from, to) as Array<{ date: string; amount_fen: number }>;
+
+  const mapCategory = (row: (typeof categoryRows)[number]) => ({
+    id: Number(row.id),
+    name: row.name,
+    amountFen: Number(row.amount_fen),
+  });
+
+  return {
+    incomeFen: Number(totals.income_fen),
+    expenseFen: Number(totals.expense_fen),
+    incomeCategories: categoryRows.filter((row) => row.type === 'income').map(mapCategory),
+    expenseCategories: categoryRows.filter((row) => row.type === 'expense').map(mapCategory),
+    subcategories: subcategoryRows.map((row) => ({
+      id: Number(row.id),
+      name: row.name,
+      parentId: Number(row.parent_id),
+      amountFen: Number(row.amount_fen),
+      type: row.type,
+    })),
+    dailyExpense: dailyRows.map((row) => ({ date: row.date, amountFen: Number(row.amount_fen) })),
+  };
 }
 
 export function updateTransaction(

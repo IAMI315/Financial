@@ -7,29 +7,61 @@ export class ApiError extends Error {
   }
 }
 
+const GET_CACHE_TTL_MS = 10_000;
+const getCache = new Map<string, { expiresAt: number; value: unknown }>();
+const inFlightGets = new Map<string, Promise<unknown>>();
+
+export function clearApiCache(): void {
+  getCache.clear();
+}
+
 export async function api<T>(
   url: string,
   options: Omit<RequestInit, 'body'> & { body?: unknown } = {},
 ): Promise<T> {
   const { body: jsonBody, ...requestOptions } = options;
-  const headers = new Headers(requestOptions.headers);
-  let body: BodyInit | undefined;
-  if (jsonBody !== undefined) {
-    headers.set('content-type', 'application/json');
-    body = JSON.stringify(jsonBody);
+  const method = (requestOptions.method ?? 'GET').toUpperCase();
+  const cacheable = method === 'GET' && jsonBody === undefined && requestOptions.signal == null;
+
+  if (cacheable) {
+    const cached = getCache.get(url);
+    if (cached && cached.expiresAt > Date.now()) return cached.value as T;
+    if (cached) getCache.delete(url);
+    const pending = inFlightGets.get(url);
+    if (pending) return pending as Promise<T>;
   }
-  const requestInit: RequestInit = { ...requestOptions, headers, credentials: 'same-origin' };
-  if (body !== undefined) requestInit.body = body;
-  const response = await fetch(url, requestInit);
-  if (!response.ok) {
-    const data = await response
-      .json()
-      .then((value) => value as Record<string, unknown>)
-      .catch(() => ({ message: response.statusText }));
-    throw new ApiError(response.status, data);
+
+  const request = (async () => {
+    const headers = new Headers(requestOptions.headers);
+    let body: BodyInit | undefined;
+    if (jsonBody !== undefined) {
+      headers.set('content-type', 'application/json');
+      body = JSON.stringify(jsonBody);
+    }
+    const requestInit: RequestInit = { ...requestOptions, headers, credentials: 'same-origin' };
+    if (body !== undefined) requestInit.body = body;
+    const response = await fetch(url, requestInit);
+    if (!response.ok) {
+      const data = await response
+        .json()
+        .then((value) => value as Record<string, unknown>)
+        .catch(() => ({ message: response.statusText }));
+      throw new ApiError(response.status, data);
+    }
+    if (method !== 'GET' && method !== 'HEAD') clearApiCache();
+    if (response.status === 204) return undefined as T;
+    return (await response.json()) as T;
+  })();
+
+  if (!cacheable) return request;
+  inFlightGets.set(url, request as Promise<unknown>);
+  try {
+    const value = await request;
+    getCache.set(url, { expiresAt: Date.now() + GET_CACHE_TTL_MS, value });
+    return value;
+  } finally {
+    inFlightGets.delete(url);
   }
-  if (response.status === 204) return undefined as T;
-  return (await response.json()) as T;
 }
 
 export async function download(url: string, filename: string): Promise<void> {
