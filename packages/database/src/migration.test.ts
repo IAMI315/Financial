@@ -7,8 +7,10 @@ import {
   createCategory,
   createUser,
   DEFAULT_CATEGORY_MIGRATIONS,
+  DEFAULT_SUBCATEGORY_MIGRATIONS,
   listCategories,
   syncDefaultCategoryAdditions,
+  syncDefaultSubcategoryAdditions,
 } from './repositories.js';
 
 const tempDirs: string[] = [];
@@ -85,6 +87,18 @@ describe('database migrations', () => {
     expect(categories.filter((item) => item.type === 'income' && item.name === '工资')).toHaveLength(1);
     expect(categories.filter((item) => item.type === 'income' && item.name === '补贴')).toHaveLength(1);
     expect(categories.filter((item) => item.type === 'income' && item.name === '经营')).toHaveLength(1);
+
+    const dining = createCategory(handle, user.id, { type: 'expense', name: '餐饮', parentId: null, sortOrder: 1 });
+    const wage = categories.find((item) => item.type === 'income' && item.name === '工资' && item.parentId === null);
+    expect(wage).toBeDefined();
+    createCategory(handle, user.id, { type: 'expense', name: '早餐', parentId: dining.id, sortOrder: 0 });
+    const subcategoryMigration = DEFAULT_SUBCATEGORY_MIGRATIONS.find((item) => item.version === 4);
+    expect(subcategoryMigration).toBeDefined();
+    expect(syncDefaultSubcategoryAdditions(handle, user.id, subcategoryMigration!.categories)).toBe(13);
+    expect(syncDefaultSubcategoryAdditions(handle, user.id, subcategoryMigration!.categories)).toBe(0);
+    const synced = listCategories(handle, user.id);
+    expect(synced.filter((item) => item.parentId === dining.id).map((item) => item.name)).toEqual(['早餐', '中餐', '晚餐']);
+    expect(synced.filter((item) => item.parentId === wage!.id).map((item) => item.name)).toEqual(['基本工资', '加班工资']);
     handle.sqlite.close();
   });
 });

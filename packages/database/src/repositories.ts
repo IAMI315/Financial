@@ -69,6 +69,7 @@ export type NewTransaction = {
 };
 
 export type DefaultCategoryTemplate = { type: TransactionType; name: string };
+export type DefaultSubcategoryTemplate = { type: TransactionType; parentName: string; name: string };
 
 const defaultCategories: DefaultCategoryTemplate[] = [
   ...['餐饮', '交通', '购物', '居住', '娱乐', '医疗', '学习', '通讯', '生活缴费', '人情/礼物', '其他', '经营'].map(
@@ -78,6 +79,21 @@ const defaultCategories: DefaultCategoryTemplate[] = [
     type: 'income' as const,
     name,
   })),
+];
+
+const defaultSubcategories: DefaultSubcategoryTemplate[] = [
+  ...['早餐', '中餐', '晚餐'].map((name) => ({ type: 'expense' as const, parentName: '餐饮', name })),
+  ...['公交', '地铁', '打车', '加油'].map((name) => ({ type: 'expense' as const, parentName: '交通', name })),
+  ...['日用品', '服饰', '数码'].map((name) => ({ type: 'expense' as const, parentName: '购物', name })),
+  ...['房租', '物业', '维修'].map((name) => ({ type: 'expense' as const, parentName: '居住', name })),
+  ...['电影', '游戏', '旅游'].map((name) => ({ type: 'expense' as const, parentName: '娱乐', name })),
+  ...['药品', '门诊'].map((name) => ({ type: 'expense' as const, parentName: '医疗', name })),
+  ...['书籍', '课程'].map((name) => ({ type: 'expense' as const, parentName: '学习', name })),
+  ...['话费', '宽带'].map((name) => ({ type: 'expense' as const, parentName: '通讯', name })),
+  ...['进货', '推广', '设备'].map((name) => ({ type: 'expense' as const, parentName: '经营', name })),
+  ...['基本工资', '加班工资'].map((name) => ({ type: 'income' as const, parentName: '工资', name })),
+  ...['餐补', '交通补贴', '住房补贴'].map((name) => ({ type: 'income' as const, parentName: '补贴', name })),
+  ...['商品销售', '服务收入', '其他经营收入'].map((name) => ({ type: 'income' as const, parentName: '经营', name })),
 ];
 
 export const DEFAULT_CATEGORY_MIGRATIONS: ReadonlyArray<{
@@ -97,6 +113,11 @@ export const DEFAULT_CATEGORY_MIGRATIONS: ReadonlyArray<{
     categories: [{ type: 'income', name: '工资' }],
   },
 ];
+
+export const DEFAULT_SUBCATEGORY_MIGRATIONS: ReadonlyArray<{
+  version: number;
+  categories: ReadonlyArray<DefaultSubcategoryTemplate>;
+}> = [{ version: 4, categories: defaultSubcategories }];
 
 function mapUser(row: Record<string, unknown>): UserRecord {
   return {
@@ -203,15 +224,29 @@ export function createUser(
 }
 
 export function createDefaultCategories(handle: DatabaseHandle, userId: number): void {
-  const insert = handle.sqlite.prepare(
+  const insertRoot = handle.sqlite.prepare(
     `insert into categories (user_id, type, name, parent_id, is_archived, sort_order, created_at, updated_at)
      values (?, ?, ?, null, 0, ?, ?, ?)`,
   );
+  const insertChild = handle.sqlite.prepare(
+    `insert into categories (user_id, type, name, parent_id, is_archived, sort_order, created_at, updated_at)
+     values (?, ?, ?, ?, 0, ?, ?, ?)`,
+  );
   const now = Date.now();
   handle.sqlite.transaction(() => {
+    const rootIds = new Map<string, number>();
     defaultCategories.forEach((category, index) => {
-      insert.run(userId, category.type, category.name, index, now, now);
+      const info = insertRoot.run(userId, category.type, category.name, index, now, now);
+      rootIds.set(`${category.type}\u0000${category.name}`, Number(info.lastInsertRowid));
     });
+    const childSortOrders = new Map<number, number>();
+    for (const category of defaultSubcategories) {
+      const parentId = rootIds.get(`${category.type}\u0000${category.parentName}`);
+      if (parentId == null) continue;
+      const sortOrder = childSortOrders.get(parentId) ?? 0;
+      insertChild.run(userId, category.type, category.name, parentId, sortOrder, now, now);
+      childSortOrders.set(parentId, sortOrder + 1);
+    }
   })();
 }
 
@@ -238,6 +273,50 @@ export function syncDefaultCategoryAdditions(
     const key = `${category.type}\u0000${category.name}`;
     if (existing.has(key)) continue;
     insert.run(userId, category.type, category.name, nextSortOrder[category.type]++, now, now);
+    existing.add(key);
+    inserted += 1;
+  }
+  return inserted;
+}
+
+export function syncDefaultSubcategoryAdditions(
+  handle: DatabaseHandle,
+  userId: number,
+  additions: ReadonlyArray<DefaultSubcategoryTemplate>,
+): number {
+  const roots = handle.sqlite
+    .prepare('select id, type, name, is_archived from categories where user_id = ? and parent_id is null')
+    .all(userId) as Array<{ id: number; type: TransactionType; name: string; is_archived: number }>;
+  const parentIds = new Map(
+    roots
+      .filter((category) => !category.is_archived)
+      .map((category) => [`${category.type}\u0000${category.name}`, Number(category.id)]),
+  );
+  const children = handle.sqlite
+    .prepare('select parent_id, name, sort_order from categories where user_id = ? and parent_id is not null')
+    .all(userId) as Array<{ parent_id: number; name: string; sort_order: number }>;
+  const existing = new Set(children.map((category) => `${category.parent_id}\u0000${category.name}`));
+  const nextSortOrder = new Map<number, number>();
+  for (const category of children) {
+    nextSortOrder.set(
+      Number(category.parent_id),
+      Math.max(nextSortOrder.get(Number(category.parent_id)) ?? 0, Number(category.sort_order) + 1),
+    );
+  }
+  const insert = handle.sqlite.prepare(
+    `insert into categories (user_id, type, name, parent_id, is_archived, sort_order, created_at, updated_at)
+     values (?, ?, ?, ?, 0, ?, ?, ?)`,
+  );
+  const now = Date.now();
+  let inserted = 0;
+  for (const category of additions) {
+    const parentId = parentIds.get(`${category.type}\u0000${category.parentName}`);
+    if (parentId == null) continue;
+    const key = `${parentId}\u0000${category.name}`;
+    if (existing.has(key)) continue;
+    const sortOrder = nextSortOrder.get(parentId) ?? 0;
+    insert.run(userId, category.type, category.name, parentId, sortOrder, now, now);
+    nextSortOrder.set(parentId, sortOrder + 1);
     existing.add(key);
     inserted += 1;
   }

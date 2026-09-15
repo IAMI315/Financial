@@ -52,16 +52,20 @@ describe('GET /healthz', () => {
       headers: { cookie },
     });
     expect(categories.statusCode).toBe(200);
-    expect(categories.json().categories).toHaveLength(20);
-    expect(categories.json().categories).toEqual(
+    const categoryItems = categories.json().categories as Array<{ id: number; type: string; name: string; parentId: number | null }>;
+    expect(categoryItems.filter((category) => category.parentId === null)).toHaveLength(20);
+    expect(categoryItems).toEqual(
       expect.arrayContaining([
-        expect.objectContaining({ type: 'expense', name: '餐饮' }),
-        expect.objectContaining({ type: 'expense', name: '经营' }),
-        expect.objectContaining({ type: 'income', name: '工资' }),
-        expect.objectContaining({ type: 'income', name: '补贴' }),
-        expect.objectContaining({ type: 'income', name: '经营' }),
+        expect.objectContaining({ type: 'expense', name: '餐饮', parentId: null }),
+        expect.objectContaining({ type: 'expense', name: '经营', parentId: null }),
+        expect.objectContaining({ type: 'income', name: '工资', parentId: null }),
+        expect.objectContaining({ type: 'income', name: '补贴', parentId: null }),
+        expect.objectContaining({ type: 'income', name: '经营', parentId: null }),
       ]),
     );
+    const dining = categoryItems.find((category) => category.type === 'expense' && category.name === '餐饮' && category.parentId === null);
+    expect(dining).toBeDefined();
+    expect(categoryItems.filter((category) => category.parentId === dining!.id).map((category) => category.name)).toEqual(['早餐', '中餐', '晚餐']);
 
     await app.close();
   });

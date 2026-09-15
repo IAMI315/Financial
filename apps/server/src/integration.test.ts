@@ -65,9 +65,14 @@ describe('V1 API integration', () => {
     const categoriesA = await app.inject({ method: 'GET', url: '/api/categories', headers: { cookie: a.cookie } });
     const categoriesB = await app.inject({ method: 'GET', url: '/api/categories', headers: { cookie: b.cookie } });
     expect(categoriesA.statusCode).toBe(200);
-    expect(categoriesA.json().categories).toHaveLength(20);
-    expect(categoriesB.json().categories).toHaveLength(20);
-    const expense = categoriesA.json().categories.find((category: { type: string; parentId: number | null }) => category.type === 'expense' && category.parentId === null);
+    const itemsA = categoriesA.json().categories as Array<{ id: number; type: string; name: string; parentId: number | null }>;
+    const itemsB = categoriesB.json().categories as Array<{ id: number; type: string; name: string; parentId: number | null }>;
+    expect(itemsA.filter((category) => category.parentId === null)).toHaveLength(20);
+    expect(itemsB.filter((category) => category.parentId === null)).toHaveLength(20);
+    const dining = itemsA.find((category) => category.type === 'expense' && category.name === '餐饮' && category.parentId === null);
+    expect(dining).toBeDefined();
+    expect(itemsA.filter((category) => category.parentId === dining!.id).map((category) => category.name)).toEqual(['早餐', '中餐', '晚餐']);
+    const expense = itemsA.find((category) => category.type === 'expense' && category.parentId === null);
 
     const created = await app.inject({
       method: 'POST',
@@ -76,7 +81,7 @@ describe('V1 API integration', () => {
       payload: {
         type: 'expense',
         amount: '25.50',
-        categoryId: expense.id,
+        categoryId: expense!.id,
         occurredAtLocal: '2026-01-01T12:00:00',
         note: '午餐',
       },
@@ -99,7 +104,7 @@ describe('V1 API integration', () => {
       payload: {
         type: 'expense',
         amount: '25.50',
-        categoryId: expense.id,
+        categoryId: expense!.id,
         occurredAtLocal: '2026-01-01T12:01:00',
       },
     });
