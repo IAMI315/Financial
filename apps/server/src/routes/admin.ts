@@ -6,12 +6,14 @@ import {
   countTransactions,
   countUsers,
   deleteUser,
+  getDefaultCategoryConfig,
   getSetting,
   getUserById,
   listTransactions,
   listUsers,
   revokeUserSessions,
   setSetting,
+  setDefaultCategoryConfig,
   setUserStatus,
   updateUserPassword,
 } from '@financial/database';
@@ -39,6 +41,32 @@ function serializeTransaction(transaction: ReturnType<typeof listTransactions>['
     occurredAtLocal: epochMsToShanghaiDateTime(transaction.occurredAt),
   };
 }
+
+const defaultCategoryItemSchema = z.object({
+  id: z.string().min(1).max(160),
+  type: z.enum(['income', 'expense']),
+  name: z.string().trim().min(1).max(40),
+  children: z.array(z.object({ id: z.string().min(1).max(160), name: z.string().trim().min(1).max(40) })).max(100),
+});
+
+const defaultCategoryConfigSchema = z.object({ categories: z.array(defaultCategoryItemSchema).max(200) }).superRefine((value, ctx) => {
+  const ids = new Set<string>();
+  const rootNames = new Set<string>();
+  for (const [rootIndex, root] of value.categories.entries()) {
+    const rootKey = `${root.type}\u0000${root.name}`;
+    if (rootNames.has(rootKey)) ctx.addIssue({ code: 'custom', message: '同类型一级默认分类名称不能重复', path: ['categories', rootIndex, 'name'] });
+    rootNames.add(rootKey);
+    if (ids.has(root.id)) ctx.addIssue({ code: 'custom', message: '默认分类 ID 重复', path: ['categories', rootIndex, 'id'] });
+    ids.add(root.id);
+    const childNames = new Set<string>();
+    for (const [childIndex, child] of root.children.entries()) {
+      if (childNames.has(child.name)) ctx.addIssue({ code: 'custom', message: '同一一级分类下二级默认分类名称不能重复', path: ['categories', rootIndex, 'children', childIndex, 'name'] });
+      childNames.add(child.name);
+      if (ids.has(child.id)) ctx.addIssue({ code: 'custom', message: '默认分类 ID 重复', path: ['categories', rootIndex, 'children', childIndex, 'id'] });
+      ids.add(child.id);
+    }
+  }
+});
 
 export function registerAdminRoutes(app: FastifyInstance, state: AppState, backups: BackupService): void {
   app.get('/api/admin/users', async (request, reply) => {
@@ -101,6 +129,21 @@ export function registerAdminRoutes(app: FastifyInstance, state: AppState, backu
     }
     deleteUser(state.database.current, target.id);
     return reply.code(204).send();
+  });
+
+  app.get('/api/admin/default-categories', async (request, reply) => {
+    const auth = requireAdmin(request, reply, state);
+    if (!auth) return;
+    return { categories: getDefaultCategoryConfig(state.database.current) };
+  });
+
+  app.put('/api/admin/default-categories', async (request, reply) => {
+    const auth = requireAdmin(request, reply, state);
+    if (!auth) return;
+    const body = defaultCategoryConfigSchema.safeParse(request.body);
+    if (!body.success) return reply.code(400).send({ error: 'INVALID_INPUT', message: body.error.issues[0]?.message ?? '默认分类配置无效' });
+    setDefaultCategoryConfig(state.database.current, body.data.categories);
+    return { categories: getDefaultCategoryConfig(state.database.current) };
   });
 
   app.get('/api/admin/settings/registration', async (request, reply) => {

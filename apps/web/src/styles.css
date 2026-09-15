@@ -182,9 +182,23 @@ details textarea { margin-top: 8px; }
 .daily-bar span { color: #8a93a3; font-size: 9px; }
 .tag-list { display: flex; flex-wrap: wrap; gap: 8px; }
 .data-tag { border: 1px solid var(--border); border-radius: 999px; background: #fafbfc; padding: 7px 10px; color: #59657a; font-size: 12px; }
+.category-manager-switch { padding-top: 12px; padding-bottom: 12px; }
+.category-manager-switch .segmented { width: min(100%, 420px); margin: 0; }
+.category-name-with-drag { min-width: 0; display: flex; align-items: center; gap: 8px; }
+.category-name-with-drag strong, .category-name-with-drag span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.drag-handle { width: 22px; height: 26px; flex: 0 0 22px; display: grid; place-items: center; border-radius: 7px; color: #9aa4b5; cursor: grab; user-select: none; }
+.drag-handle:hover { background: #f1f4f9; color: #63708a; }
+.drag-handle:active { cursor: grabbing; }
+.drag-grip, .drag-grip::before, .drag-grip::after { display: block; width: 12px; height: 1.5px; border-radius: 99px; background: currentColor; }
+.drag-grip { position: relative; }
+.drag-grip::before, .drag-grip::after { content: ''; position: absolute; left: 0; }
+.drag-grip::before { top: -4px; }
+.drag-grip::after { top: 4px; }
 .category-tree { border-bottom: 1px solid #eef1f5; padding: 8px 0; }
 .category-tree:last-child { border: 0; }
 .category-line { display: flex; justify-content: space-between; gap: 10px; align-items: center; min-height: 38px; }
+.category-line:has(.drag-handle) { border-radius: 9px; }
+.category-line:has(.drag-handle):hover { background: #fbfcff; }
 .category-line.child { padding-left: 18px; color: #677287; font-size: 13px; }
 .archived { opacity: .5; }
 .file-drop { display: grid; place-items: center; min-height: 135px; border: 1px dashed #b9c5db; border-radius: 16px; background: #f9fbff; padding: 20px; text-align: center; cursor: pointer; }

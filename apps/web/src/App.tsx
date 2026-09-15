@@ -42,7 +42,7 @@ export function App() {
     home: <HomePage />,
     transactions: <TransactionsPage />,
     stats: <StatsPage />,
-    categories: <CategoriesPage />,
+    categories: <CategoriesPage isAdmin={user.role === 'admin'} />,
     import: <ImportPage />,
     settings: <SettingsPage onDeleted={() => setUser(null)} />,
     'user-view': <AdminUserViewPage />,

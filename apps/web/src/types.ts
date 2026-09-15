@@ -20,6 +20,13 @@ export type Category = {
   sortOrder: number;
 };
 
+export type DefaultCategoryConfigItem = {
+  id: string;
+  type: TransactionType;
+  name: string;
+  children: Array<{ id: string; name: string }>;
+};
+
 export type Transaction = {
   id: number;
   userId: number;

@@ -5,6 +5,7 @@ import {
   deleteUnusedCategory,
   getCategory,
   listCategories,
+  reorderCategories,
   updateCategory,
 } from '@financial/database';
 import type { AppState } from '../runtime.js';
@@ -21,6 +22,7 @@ const updateSchema = z.object({
   isArchived: z.boolean().optional(),
   sortOrder: z.number().int().min(0).max(10_000).optional(),
 });
+const reorderSchema = z.object({ ids: z.array(z.number().int().positive()).min(1).max(500) });
 
 export function registerCategoryRoutes(app: FastifyInstance, state: AppState): void {
   app.get('/api/categories', async (request, reply) => {
@@ -44,6 +46,17 @@ export function registerCategoryRoutes(app: FastifyInstance, state: AppState): v
     }
     const category = createCategory(state.database.current, auth.user.id, parsed.data);
     return reply.code(201).send({ category });
+  });
+
+  app.put('/api/categories/reorder', async (request, reply) => {
+    const auth = requireAuth(request, reply, state);
+    if (!auth) return;
+    const parsed = reorderSchema.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'INVALID_INPUT', message: '分类排序信息无效' });
+    if (!reorderCategories(state.database.current, auth.user.id, parsed.data.ids)) {
+      return reply.code(400).send({ error: 'INVALID_ORDER', message: '只能调整同一层级、同一分类组内的顺序' });
+    }
+    return { categories: listCategories(state.database.current, auth.user.id) };
   });
 
   app.patch('/api/categories/:id', async (request, reply) => {

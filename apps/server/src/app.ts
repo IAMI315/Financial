@@ -13,6 +13,7 @@ import {
   getSetting,
   listCategories,
   listUsers,
+  reorderNamedSubcategories,
   setSetting,
   syncDefaultCategoryAdditions,
   syncDefaultSubcategoryAdditions,
@@ -83,6 +84,15 @@ async function bootstrapSystem(state: AppState): Promise<void> {
         syncDefaultSubcategoryAdditions(state.database.current, user.id, migration.categories);
       }
       setSetting(state.database.current, settingKey, 'done');
+    })();
+  }
+
+  if (getSetting(state.database.current, 'default_subcategories_order_v5') == null) {
+    state.database.current.sqlite.transaction(() => {
+      for (const user of listUsers(state.database.current)) {
+        reorderNamedSubcategories(state.database.current, user.id, 'expense', '餐饮', ['早餐', '中餐', '晚餐']);
+      }
+      setSetting(state.database.current, 'default_subcategories_order_v5', 'done');
     })();
   }
 

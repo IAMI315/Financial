@@ -9,8 +9,10 @@ import {
   DEFAULT_CATEGORY_MIGRATIONS,
   DEFAULT_SUBCATEGORY_MIGRATIONS,
   listCategories,
+  reorderNamedSubcategories,
   syncDefaultCategoryAdditions,
   syncDefaultSubcategoryAdditions,
+  updateCategory,
 } from './repositories.js';
 
 const tempDirs: string[] = [];
@@ -98,6 +100,12 @@ describe('database migrations', () => {
     expect(syncDefaultSubcategoryAdditions(handle, user.id, subcategoryMigration!.categories)).toBe(0);
     const synced = listCategories(handle, user.id);
     expect(synced.filter((item) => item.parentId === dining.id).map((item) => item.name)).toEqual(['早餐', '中餐', '晚餐']);
+    const diningChildren = synced.filter((item) => item.parentId === dining.id);
+    updateCategory(handle, user.id, diningChildren.find((item) => item.name === '早餐')!.id, { sortOrder: 2 });
+    updateCategory(handle, user.id, diningChildren.find((item) => item.name === '中餐')!.id, { sortOrder: 0 });
+    updateCategory(handle, user.id, diningChildren.find((item) => item.name === '晚餐')!.id, { sortOrder: 1 });
+    expect(reorderNamedSubcategories(handle, user.id, 'expense', '餐饮', ['早餐', '中餐', '晚餐'])).toBe(true);
+    expect(listCategories(handle, user.id).filter((item) => item.parentId === dining.id).map((item) => item.name)).toEqual(['早餐', '中餐', '晚餐']);
     expect(synced.filter((item) => item.parentId === wage!.id).map((item) => item.name)).toEqual(['基本工资', '加班工资']);
     handle.sqlite.close();
   });

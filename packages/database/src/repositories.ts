@@ -70,6 +70,14 @@ export type NewTransaction = {
 
 export type DefaultCategoryTemplate = { type: TransactionType; name: string };
 export type DefaultSubcategoryTemplate = { type: TransactionType; parentName: string; name: string };
+export type DefaultCategoryConfigItem = {
+  id: string;
+  type: TransactionType;
+  name: string;
+  children: Array<{ id: string; name: string }>;
+};
+
+export const DEFAULT_CATEGORY_CONFIG_KEY = 'default_category_config_v1';
 
 const defaultCategories: DefaultCategoryTemplate[] = [
   ...['餐饮', '交通', '购物', '居住', '娱乐', '医疗', '学习', '通讯', '生活缴费', '人情/礼物', '其他', '经营'].map(
@@ -95,6 +103,56 @@ const defaultSubcategories: DefaultSubcategoryTemplate[] = [
   ...['餐补', '交通补贴', '住房补贴'].map((name) => ({ type: 'income' as const, parentName: '补贴', name })),
   ...['商品销售', '服务收入', '其他经营收入'].map((name) => ({ type: 'income' as const, parentName: '经营', name })),
 ];
+
+function builtInDefaultCategoryConfig(): DefaultCategoryConfigItem[] {
+  return defaultCategories.map((category) => ({
+    id: `builtin:${category.type}:${category.name}`,
+    type: category.type,
+    name: category.name,
+    children: defaultSubcategories
+      .filter((child) => child.type === category.type && child.parentName === category.name)
+      .map((child) => ({ id: `builtin:${child.type}:${child.parentName}:${child.name}`, name: child.name })),
+  }));
+}
+
+function isDefaultCategoryConfig(value: unknown): value is DefaultCategoryConfigItem[] {
+  if (!Array.isArray(value)) return false;
+  const ids = new Set<string>();
+  for (const root of value) {
+    if (!root || typeof root !== 'object') return false;
+    const item = root as Record<string, unknown>;
+    if (typeof item.id !== 'string' || ids.has(item.id)) return false;
+    if (item.type !== 'expense' && item.type !== 'income') return false;
+    if (typeof item.name !== 'string' || item.name.trim().length === 0 || item.name.length > 40) return false;
+    if (!Array.isArray(item.children)) return false;
+    ids.add(item.id);
+    for (const child of item.children) {
+      if (!child || typeof child !== 'object') return false;
+      const childItem = child as Record<string, unknown>;
+      if (typeof childItem.id !== 'string' || ids.has(childItem.id)) return false;
+      if (typeof childItem.name !== 'string' || childItem.name.trim().length === 0 || childItem.name.length > 40) return false;
+      ids.add(childItem.id);
+    }
+  }
+  return true;
+}
+
+export function getDefaultCategoryConfig(handle: DatabaseHandle): DefaultCategoryConfigItem[] {
+  const raw = getSetting(handle, DEFAULT_CATEGORY_CONFIG_KEY);
+  if (raw) {
+    try {
+      const parsed: unknown = JSON.parse(raw);
+      if (isDefaultCategoryConfig(parsed)) return parsed.map((root) => ({ ...root, children: root.children.map((child) => ({ ...child })) }));
+    } catch {
+      // Fall back to the built-in defaults if the setting is corrupted.
+    }
+  }
+  return builtInDefaultCategoryConfig();
+}
+
+export function setDefaultCategoryConfig(handle: DatabaseHandle, categories: DefaultCategoryConfigItem[]): void {
+  setSetting(handle, DEFAULT_CATEGORY_CONFIG_KEY, JSON.stringify(categories));
+}
 
 export const DEFAULT_CATEGORY_MIGRATIONS: ReadonlyArray<{
   version: number;
@@ -233,19 +291,15 @@ export function createDefaultCategories(handle: DatabaseHandle, userId: number):
      values (?, ?, ?, ?, 0, ?, ?, ?)`,
   );
   const now = Date.now();
+  const config = getDefaultCategoryConfig(handle);
   handle.sqlite.transaction(() => {
-    const rootIds = new Map<string, number>();
-    defaultCategories.forEach((category, index) => {
-      const info = insertRoot.run(userId, category.type, category.name, index, now, now);
-      rootIds.set(`${category.type}\u0000${category.name}`, Number(info.lastInsertRowid));
-    });
-    const childSortOrders = new Map<number, number>();
-    for (const category of defaultSubcategories) {
-      const parentId = rootIds.get(`${category.type}\u0000${category.parentName}`);
-      if (parentId == null) continue;
-      const sortOrder = childSortOrders.get(parentId) ?? 0;
-      insertChild.run(userId, category.type, category.name, parentId, sortOrder, now, now);
-      childSortOrders.set(parentId, sortOrder + 1);
+    const rootSortOrders: Record<TransactionType, number> = { expense: 0, income: 0 };
+    for (const category of config) {
+      const info = insertRoot.run(userId, category.type, category.name, rootSortOrders[category.type]++, now, now);
+      const parentId = Number(info.lastInsertRowid);
+      category.children.forEach((child, index) => {
+        insertChild.run(userId, category.type, child.name, parentId, index, now, now);
+      });
     }
   })();
 }
@@ -321,6 +375,35 @@ export function syncDefaultSubcategoryAdditions(
     inserted += 1;
   }
   return inserted;
+}
+
+export function reorderNamedSubcategories(
+  handle: DatabaseHandle,
+  userId: number,
+  type: TransactionType,
+  parentName: string,
+  orderedNames: ReadonlyArray<string>,
+): boolean {
+  const parent = handle.sqlite
+    .prepare('select id from categories where user_id = ? and type = ? and parent_id is null and name = ? limit 1')
+    .get(userId, type, parentName) as { id: number } | undefined;
+  if (!parent) return false;
+  const children = handle.sqlite
+    .prepare('select id, name from categories where user_id = ? and parent_id = ? order by sort_order, name, id')
+    .all(userId, parent.id) as Array<{ id: number; name: string }>;
+  const rank = new Map(orderedNames.map((name, index) => [name, index]));
+  const ordered = [...children].sort((a, b) => {
+    const aRank = rank.get(a.name);
+    const bRank = rank.get(b.name);
+    if (aRank != null && bRank != null) return aRank - bRank;
+    if (aRank != null) return -1;
+    if (bRank != null) return 1;
+    return children.indexOf(a) - children.indexOf(b);
+  });
+  const update = handle.sqlite.prepare('update categories set sort_order = ?, updated_at = ? where id = ? and user_id = ?');
+  const now = Date.now();
+  handle.sqlite.transaction(() => ordered.forEach((child, index) => update.run(index, now, child.id, userId)))();
+  return true;
 }
 
 export function listUsers(handle: DatabaseHandle): UserRecord[] {
@@ -470,12 +553,20 @@ export function createCategory(
   },
 ): CategoryRecord {
   const now = Date.now();
+  const parentId = input.parentId ?? null;
+  let sortOrder = input.sortOrder;
+  if (sortOrder == null) {
+    const row = parentId == null
+      ? (handle.sqlite.prepare('select coalesce(max(sort_order), -1) + 1 as next from categories where user_id = ? and type = ? and parent_id is null').get(userId, input.type) as { next: number })
+      : (handle.sqlite.prepare('select coalesce(max(sort_order), -1) + 1 as next from categories where user_id = ? and parent_id = ?').get(userId, parentId) as { next: number });
+    sortOrder = Number(row.next);
+  }
   const info = handle.sqlite
     .prepare(
       `insert into categories (user_id, type, name, parent_id, is_archived, sort_order, created_at, updated_at)
        values (?, ?, ?, ?, 0, ?, ?, ?)`,
     )
-    .run(userId, input.type, input.name, input.parentId ?? null, input.sortOrder ?? 0, now, now);
+    .run(userId, input.type, input.name, parentId, sortOrder, now, now);
   const category = getCategory(handle, userId, Number(info.lastInsertRowid));
   if (!category) throw new Error('Failed to read newly created category');
   return category;
@@ -504,6 +595,26 @@ export function updateCategory(
       userId,
     );
   return getCategory(handle, userId, categoryId);
+}
+
+export function reorderCategories(handle: DatabaseHandle, userId: number, orderedIds: ReadonlyArray<number>): boolean {
+  if (orderedIds.length === 0 || new Set(orderedIds).size !== orderedIds.length) return false;
+  const categories = listCategories(handle, userId);
+  const byId = new Map(categories.map((category) => [category.id, category]));
+  const first = byId.get(orderedIds[0]!);
+  if (!first) return false;
+  const siblings = categories.filter((category) => category.type === first.type && category.parentId === first.parentId);
+  if (siblings.length !== orderedIds.length) return false;
+  if (!orderedIds.every((id) => {
+    const category = byId.get(id);
+    return category?.type === first.type && category.parentId === first.parentId;
+  })) return false;
+  const siblingIds = new Set(siblings.map((category) => category.id));
+  if (!orderedIds.every((id) => siblingIds.has(id))) return false;
+  const update = handle.sqlite.prepare('update categories set sort_order = ?, updated_at = ? where id = ? and user_id = ?');
+  const now = Date.now();
+  handle.sqlite.transaction(() => orderedIds.forEach((id, index) => update.run(index, now, id, userId)))();
+  return true;
 }
 
 export function deleteUnusedCategory(handle: DatabaseHandle, userId: number, categoryId: number): 'deleted' | 'used' | 'children' | 'not-found' {

@@ -112,6 +112,55 @@ describe('V1 API integration', () => {
     expect(duplicate.json().error).toBe('POTENTIAL_DUPLICATE');
   });
 
+  it('persists drag ordering independently for root and child categories', async () => {
+    const user = await register('OrderUser', null);
+    const response = await app.inject({ method: 'GET', url: '/api/categories', headers: { cookie: user.cookie } });
+    const categories = response.json().categories as Array<{ id: number; type: string; name: string; parentId: number | null }>;
+    const expenseRoots = categories.filter((category) => category.type === 'expense' && category.parentId === null);
+    const reversedRoots = [...expenseRoots].reverse();
+    const reorderedRoots = await app.inject({ method: 'PUT', url: '/api/categories/reorder', headers: { cookie: user.cookie }, payload: { ids: reversedRoots.map((category) => category.id) } });
+    expect(reorderedRoots.statusCode).toBe(200);
+    expect((reorderedRoots.json().categories as typeof categories).filter((category) => category.type === 'expense' && category.parentId === null).map((category) => category.name)).toEqual(reversedRoots.map((category) => category.name));
+
+    const dining = categories.find((category) => category.type === 'expense' && category.name === '餐饮' && category.parentId === null)!;
+    const diningChildren = categories.filter((category) => category.parentId === dining.id);
+    const reversedChildren = [...diningChildren].reverse();
+    const reorderedChildren = await app.inject({ method: 'PUT', url: '/api/categories/reorder', headers: { cookie: user.cookie }, payload: { ids: reversedChildren.map((category) => category.id) } });
+    expect(reorderedChildren.statusCode).toBe(200);
+    expect((reorderedChildren.json().categories as typeof categories).filter((category) => category.parentId === dining.id).map((category) => category.name)).toEqual(reversedChildren.map((category) => category.name));
+
+    const incomeRoot = categories.find((category) => category.type === 'income' && category.parentId === null)!;
+    const invalid = await app.inject({ method: 'PUT', url: '/api/categories/reorder', headers: { cookie: user.cookie }, payload: { ids: [expenseRoots[0]!.id, incomeRoot.id] } });
+    expect(invalid.statusCode).toBe(400);
+  });
+
+  it('lets only admins edit the default category template used by new accounts', async () => {
+    const regular = await register('RegularUser', null);
+    const forbidden = await app.inject({ method: 'GET', url: '/api/admin/default-categories', headers: { cookie: regular.cookie } });
+    expect(forbidden.statusCode).toBe(403);
+
+    const adminCookie = await login('admin', 'test-admin-password');
+    const defaultsResponse = await app.inject({ method: 'GET', url: '/api/admin/default-categories', headers: { cookie: adminCookie } });
+    expect(defaultsResponse.statusCode).toBe(200);
+    type DefaultRoot = { id: string; type: 'income' | 'expense'; name: string; children: Array<{ id: string; name: string }> };
+    const defaults = defaultsResponse.json().categories as DefaultRoot[];
+    const dining = defaults.find((item) => item.type === 'expense' && item.name === '餐饮')!;
+    expect(dining.children.map((item) => item.name)).toEqual(['早餐', '中餐', '晚餐']);
+    const edited = defaults.map((item) => item.id === dining.id ? { ...item, children: [item.children[2]!, item.children[0]!, item.children[1]!] } : item);
+    edited.push({ id: 'test-default-root', type: 'expense', name: '测试默认', children: [{ id: 'test-default-child', name: '测试子类' }] });
+    const saved = await app.inject({ method: 'PUT', url: '/api/admin/default-categories', headers: { cookie: adminCookie }, payload: { categories: edited } });
+    expect(saved.statusCode).toBe(200);
+
+    const newUser = await register('AfterDefaultEdit', null);
+    const newCategoriesResponse = await app.inject({ method: 'GET', url: '/api/categories', headers: { cookie: newUser.cookie } });
+    const newCategories = newCategoriesResponse.json().categories as Array<{ id: number; type: string; name: string; parentId: number | null }>;
+    const newDining = newCategories.find((item) => item.type === 'expense' && item.name === '餐饮' && item.parentId === null)!;
+    expect(newCategories.filter((item) => item.parentId === newDining.id).map((item) => item.name)).toEqual(['晚餐', '早餐', '中餐']);
+    const customRoot = newCategories.find((item) => item.type === 'expense' && item.name === '测试默认' && item.parentId === null)!;
+    expect(customRoot).toBeDefined();
+    expect(newCategories.filter((item) => item.parentId === customRoot.id).map((item) => item.name)).toEqual(['测试子类']);
+  });
+
   it('calculates statistics and supports CSV import rollback atomically', async () => {
     const user = await register('StatsUser', null);
     const categoriesResponse = await app.inject({ method: 'GET', url: '/api/categories', headers: { cookie: user.cookie } });
