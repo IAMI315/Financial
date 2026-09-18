@@ -179,11 +179,32 @@ describe('V1 API integration', () => {
     const common = await app.inject({ method: 'GET', url: '/api/transactions/common?limit=3', headers: { cookie: user.cookie } });
     expect(common.statusCode).toBe(200);
     expect(common.json().items[0]).toMatchObject({
-      type: 'expense', amountFen: 450, amount: '4.50', categoryId: food.id, categoryName: '餐饮', subcategoryId: breakfast.id, subcategoryName: '早餐', usageCount: 2,
+      type: 'expense', amountFen: 450, amount: '4.50', categoryId: food.id, categoryName: '餐饮', subcategoryId: breakfast.id, subcategoryName: '早餐', usageCount: 2, isPinned: false,
     });
     expect(common.json().items[1]).toMatchObject({
-      type: 'income', amountFen: 2000, amount: '20.00', categoryId: salary.id, categoryName: '工资', usageCount: 1,
+      type: 'income', amountFen: 2000, amount: '20.00', categoryId: salary.id, categoryName: '工资', usageCount: 1, isPinned: false,
     });
+
+    const pin = await app.inject({
+      method: 'PUT',
+      url: '/api/transactions/common/pin',
+      headers: { cookie: user.cookie },
+      payload: { type: 'income', amountFen: 2000, categoryId: salary.id, subcategoryId: null, pinned: true },
+    });
+    expect(pin.statusCode).toBe(200);
+    expect(pin.json().items[0]).toMatchObject({ type: 'income', categoryId: salary.id, amountFen: 2000, isPinned: true });
+
+    const persisted = await app.inject({ method: 'GET', url: '/api/transactions/common?limit=3', headers: { cookie: user.cookie } });
+    expect(persisted.json().items[0]).toMatchObject({ type: 'income', categoryId: salary.id, isPinned: true });
+
+    const unpin = await app.inject({
+      method: 'PUT',
+      url: '/api/transactions/common/pin',
+      headers: { cookie: user.cookie },
+      payload: { type: 'income', amountFen: 2000, categoryId: salary.id, subcategoryId: null, pinned: false },
+    });
+    expect(unpin.statusCode).toBe(200);
+    expect(unpin.json().items[0]).toMatchObject({ type: 'expense', categoryId: food.id, amountFen: 450, isPinned: false });
   });
 
   it('calculates statistics and supports CSV import rollback atomically', async () => {
@@ -200,6 +221,17 @@ describe('V1 API integration', () => {
       const response = await app.inject({ method: 'POST', url: '/api/transactions', headers: { cookie: user.cookie }, payload });
       expect(response.statusCode).toBe(201);
     }
+
+    const pagedTransactions = await app.inject({ method: 'GET', url: '/api/transactions?page=1&pageSize=1', headers: { cookie: user.cookie } });
+    expect(pagedTransactions.statusCode).toBe(200);
+    expect(pagedTransactions.json().items).toHaveLength(1);
+    expect(pagedTransactions.json().balances).toEqual({
+      daily: [
+        { period: '2026-02-02', balanceFen: 10_000 },
+        { period: '2026-02-01', balanceFen: -1_000 },
+      ],
+      monthly: [{ period: '2026-02', balanceFen: 9_000 }],
+    });
 
     const stats = await app.inject({ method: 'GET', url: '/api/stats/monthly?month=2026-02', headers: { cookie: user.cookie } });
     const statsBody = stats.json();

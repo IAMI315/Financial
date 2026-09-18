@@ -53,6 +53,7 @@ export type CommonTransaction = {
   subcategoryName: string | null;
   usageCount: number;
   lastUsedAt: number;
+  isPinned: boolean;
 };
 
 export type MonthlyStats = {

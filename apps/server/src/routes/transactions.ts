@@ -5,6 +5,7 @@ import {
   getTransaction,
   listTransactions,
   listCommonTransactions,
+  setCommonTransactionPinned,
   type TransactionFilters,
 } from '@financial/database';
 import { epochMsToShanghaiDateTime, formatFenToCny, shanghaiDateTimeToEpochMs } from '@financial/domain';
@@ -20,6 +21,14 @@ const transactionBody = z.object({
   occurredAtLocal: z.string(),
   note: z.string().nullable().optional(),
   confirmDuplicate: z.boolean().optional(),
+});
+
+const commonPinBody = z.object({
+  type: z.enum(['income', 'expense']),
+  amountFen: z.number().int().positive(),
+  categoryId: z.number().int().positive(),
+  subcategoryId: z.number().int().positive().nullable().optional(),
+  pinned: z.boolean(),
 });
 
 function serializeTransaction(transaction: NonNullable<ReturnType<typeof getTransaction>>) {
@@ -90,6 +99,19 @@ export function registerTransactionRoutes(app: FastifyInstance, state: AppState)
         amount: formatFenToCny(item.amountFen),
       })),
     };
+  });
+
+  app.put('/api/transactions/common/pin', async (request, reply) => {
+    const auth = requireAuth(request, reply, state);
+    if (!auth) return;
+    const parsed = commonPinBody.safeParse(request.body);
+    if (!parsed.success) return reply.code(400).send({ error: 'INVALID_INPUT' });
+    const { pinned, ...key } = parsed.data;
+    if (!setCommonTransactionPinned(state.database.current, auth.user.id, key, pinned)) {
+      return reply.code(400).send({ error: 'INVALID_COMMON_TRANSACTION' });
+    }
+    const items = listCommonTransactions(state.database.current, auth.user.id, 8);
+    return { items: items.map((item) => ({ ...item, amount: formatFenToCny(item.amountFen) })) };
   });
 
   app.get('/api/transactions/:id', async (request, reply) => {

@@ -1,19 +1,17 @@
-import { useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { ApiError, api, shanghaiNowLocal } from '../api';
 import type { Category, CommonTransaction, TransactionType } from '../types';
-
-function compactAmount(amountFen: number): string {
-  return (amountFen / 100).toFixed(2).replace(/\.00$/, '').replace(/(\.\d)0$/, '$1');
-}
 
 export function QuickEntry({
   categories,
   commonEntries,
+  onCommonEntriesChanged,
   onSaved,
   onCategoryCreated,
 }: {
   categories: Category[];
   commonEntries: CommonTransaction[];
+  onCommonEntriesChanged: (items: CommonTransaction[]) => void;
   onSaved: () => void;
   onCategoryCreated: (category: Category) => void;
 }) {
@@ -31,6 +29,9 @@ export function QuickEntry({
   const [creatingCategory, setCreatingCategory] = useState(false);
   const [subcategoryPanelTop, setSubcategoryPanelTop] = useState<number | null>(null);
   const categoryGridRef = useRef<HTMLDivElement>(null);
+  const [commonMenu, setCommonMenu] = useState<{ entry: CommonTransaction; x: number; y: number } | null>(null);
+  const longPressTimerRef = useRef<number | null>(null);
+  const suppressCommonClickRef = useRef(false);
 
   const roots = useMemo(
     () => categories.filter((category) => category.type === type && category.parentId === null && !category.isArchived),
@@ -40,6 +41,20 @@ export function QuickEntry({
     () => categories.filter((category) => category.parentId === categoryId && !category.isArchived),
     [categories, categoryId],
   );
+
+  useEffect(() => {
+    if (!commonMenu) return;
+    const close = () => setCommonMenu(null);
+    const onKeyDown = (event: KeyboardEvent) => { if (event.key === 'Escape') close(); };
+    window.addEventListener('click', close);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('keydown', onKeyDown);
+    return () => {
+      window.removeEventListener('click', close);
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('keydown', onKeyDown);
+    };
+  }, [commonMenu]);
 
   useLayoutEffect(() => {
     const grid = categoryGridRef.current;
@@ -99,6 +114,61 @@ export function QuickEntry({
     setSubcategoryId('');
     setAddingCategory(false);
     setError('');
+  }
+
+  function openCommonMenu(entry: CommonTransaction, x: number, y: number) {
+    const menuWidth = 132;
+    const menuHeight = 48;
+    setCommonMenu({
+      entry,
+      x: Math.max(8, Math.min(x, window.innerWidth - menuWidth - 8)),
+      y: Math.max(8, Math.min(y, window.innerHeight - menuHeight - 8)),
+    });
+  }
+
+  function clearLongPress() {
+    if (longPressTimerRef.current != null) {
+      window.clearTimeout(longPressTimerRef.current);
+      longPressTimerRef.current = null;
+    }
+  }
+
+  function startCommonLongPress(event: ReactPointerEvent<HTMLButtonElement>, entry: CommonTransaction) {
+    if (event.pointerType !== 'touch') return;
+    clearLongPress();
+    suppressCommonClickRef.current = false;
+    const { clientX, clientY } = event;
+    longPressTimerRef.current = window.setTimeout(() => {
+      suppressCommonClickRef.current = true;
+      openCommonMenu(entry, clientX, clientY);
+      longPressTimerRef.current = null;
+    }, 550);
+  }
+
+  function handleCommonContextMenu(event: ReactMouseEvent<HTMLButtonElement>, entry: CommonTransaction) {
+    event.preventDefault();
+    clearLongPress();
+    openCommonMenu(entry, event.clientX, event.clientY);
+  }
+
+  async function toggleCommonPin(entry: CommonTransaction) {
+    setCommonMenu(null);
+    setError('');
+    try {
+      const result = await api<{ items: CommonTransaction[] }>('/api/transactions/common/pin', {
+        method: 'PUT',
+        body: {
+          type: entry.type,
+          amountFen: entry.amountFen,
+          categoryId: entry.categoryId,
+          subcategoryId: entry.subcategoryId,
+          pinned: !entry.isPinned,
+        },
+      });
+      onCommonEntriesChanged(result.items);
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : '常用记账置顶操作失败');
+    }
   }
 
   function applyCommonEntry(entry: CommonTransaction) {
@@ -188,13 +258,24 @@ export function QuickEntry({
               <button
                 key={`${entry.type}-${entry.categoryId}-${entry.subcategoryId ?? 'root'}-${entry.amountFen}-${index}`}
                 type="button"
-                className={`common-entry-row ${entry.type}`}
-                onClick={() => applyCommonEntry(entry)}
-                title="点击带入快速记账"
+                className={`common-entry-row ${entry.type}${entry.isPinned ? ' pinned' : ''}`}
+                onClick={() => {
+                  if (suppressCommonClickRef.current) {
+                    suppressCommonClickRef.current = false;
+                    return;
+                  }
+                  applyCommonEntry(entry);
+                }}
+                onContextMenu={(event) => handleCommonContextMenu(event, entry)}
+                onPointerDown={(event) => startCommonLongPress(event, entry)}
+                onPointerUp={clearLongPress}
+                onPointerCancel={clearLongPress}
+                onPointerLeave={clearLongPress}
+                title={`${entry.isPinned ? '已置顶 · ' : ''}点击带入；右键或长按管理置顶`}
               >
                 <span className={`common-entry-type ${entry.type}`}>{entry.type === 'income' ? '收' : '支'}</span>
                 <span className="common-entry-name">{entry.categoryName}{entry.subcategoryName ? `-${entry.subcategoryName}` : ''}</span>
-                <strong className="common-entry-amount">{compactAmount(entry.amountFen)}</strong>
+                <strong className="common-entry-amount">{entry.amount}</strong>
               </button>
             ))}
             {commonEntries.length === 0 && <p className="common-entry-empty">记几笔后，这里会显示常用组合。</p>}
@@ -228,6 +309,11 @@ export function QuickEntry({
         </div>
       </div>
       <label>交易时间<input type="datetime-local" step="1" value={occurredAtLocal} onChange={(event) => setOccurredAtLocal(event.target.value)} /></label>
+      {commonMenu && (
+        <div className="common-entry-menu" style={{ left: commonMenu.x, top: commonMenu.y }} onClick={(event) => event.stopPropagation()}>
+          <button type="button" onClick={() => void toggleCommonPin(commonMenu.entry)}>{commonMenu.entry.isPinned ? '取消置顶' : '置顶'}</button>
+        </div>
+      )}
       <details><summary>添加备注</summary><textarea rows={2} maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} placeholder="可选" /></details>
       {error && <div className="notice error">{error}</div>}
       <button className="primary wide" type="button" onClick={() => void save(duplicatePending)}>{duplicatePending ? '确认仍然保存' : '保存'}</button>

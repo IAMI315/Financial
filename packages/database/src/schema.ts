@@ -137,6 +137,30 @@ export const transactions = sqliteTable(
   ],
 );
 
+export const commonTransactionPins = sqliteTable(
+  'common_transaction_pins',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    signature: text('signature').notNull(),
+    type: text('type', { enum: ['income', 'expense'] }).notNull(),
+    amountFen: integer('amount_fen').notNull(),
+    categoryId: integer('category_id')
+      .notNull()
+      .references(() => categories.id, { onDelete: 'cascade' }),
+    subcategoryId: integer('subcategory_id').references(() => categories.id, { onDelete: 'cascade' }),
+    pinnedAt: integer('pinned_at', { mode: 'timestamp_ms' }).notNull().default(nowMs),
+  },
+  (table) => [
+    uniqueIndex('common_transaction_pins_user_signature_uq').on(table.userId, table.signature),
+    index('common_transaction_pins_user_time_idx').on(table.userId, table.pinnedAt),
+    check('common_transaction_pins_type_check', sql`${table.type} in ('income', 'expense')`),
+    check('common_transaction_pins_amount_positive_check', sql`${table.amountFen} > 0`),
+  ],
+);
+
 export const systemSettings = sqliteTable('system_settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),

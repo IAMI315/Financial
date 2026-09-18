@@ -8,6 +8,10 @@ type TransactionList = {
   total: number;
   page: number;
   pageSize: number;
+  balances: {
+    daily: Array<{ period: string; balanceFen: number }>;
+    monthly: Array<{ period: string; balanceFen: number }>;
+  };
 };
 
 type EditState = {
@@ -22,7 +26,7 @@ type EditState = {
 
 export function TransactionsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
-  const [result, setResult] = useState<TransactionList>({ items: [], total: 0, page: 1, pageSize: 100 });
+  const [result, setResult] = useState<TransactionList>({ items: [], total: 0, page: 1, pageSize: 100, balances: { daily: [], monthly: [] } });
   const [filters, setFilters] = useState({ from: '', to: '', type: '', categoryId: '', subcategoryId: '', keyword: '' });
   const [debouncedKeyword, setDebouncedKeyword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -120,6 +124,7 @@ export function TransactionsPage() {
         {message && <div className="notice">{message}</div>}
         {loading && result.items.length === 0 ? <p className="empty">正在加载流水…</p> : <MonthlyTransactionTables
           items={result.items}
+          balances={result.balances}
           onEdit={(item) => setEdit({ id: item.id, type: item.type, amount: item.amount, categoryId: item.categoryId, subcategoryId: item.subcategoryId ?? '', occurredAtLocal: item.occurredAtLocal, note: item.note ?? '' })}
           onDelete={(item) => void remove(item)}
         />}

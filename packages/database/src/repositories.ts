@@ -56,6 +56,7 @@ export type CommonTransactionRecord = {
   subcategoryName: string | null;
   usageCount: number;
   lastUsedAt: number;
+  isPinned: boolean;
 };
 
 export type TransactionFilters = {
@@ -77,6 +78,13 @@ export type NewTransaction = {
   occurredAt: number;
   note?: string | null | undefined;
   importBatchId?: number | null | undefined;
+};
+
+export type CommonTransactionKey = {
+  type: TransactionType;
+  amountFen: number;
+  categoryId: number;
+  subcategoryId?: number | null | undefined;
 };
 
 export type DefaultCategoryTemplate = { type: TransactionType; name: string };
@@ -712,7 +720,16 @@ export function listTransactions(
   handle: DatabaseHandle,
   userId: number,
   filters: TransactionFilters = {},
-): { items: TransactionRecord[]; total: number; page: number; pageSize: number } {
+): {
+  items: TransactionRecord[];
+  total: number;
+  page: number;
+  pageSize: number;
+  balances: {
+    daily: Array<{ period: string; balanceFen: number }>;
+    monthly: Array<{ period: string; balanceFen: number }>;
+  };
+} {
   const page = Math.max(1, filters.page ?? 1);
   const pageSize = Math.min(100, Math.max(1, filters.pageSize ?? 20));
   const where = transactionWhere(filters);
@@ -729,12 +746,42 @@ export function listTransactions(
        order by t.occurred_at desc, t.id desc limit ? offset ?`,
     )
     .all(userId, ...where.params, pageSize, (page - 1) * pageSize) as Array<Record<string, unknown>>;
-  return { items: rows.map(mapTransaction), total: Number(totalRow.count), page, pageSize };
+  const dailyBalanceRows = handle.sqlite
+    .prepare(
+      `select strftime('%Y-%m-%d', t.occurred_at / 1000.0, 'unixepoch', '+8 hours') as period,
+              coalesce(sum(case when t.type = 'income' then t.amount_fen else -t.amount_fen end), 0) as balance_fen
+       from transactions t
+       where t.user_id = ?${where.sql}
+       group by period
+       order by period desc`,
+    )
+    .all(userId, ...where.params) as Array<{ period: string; balance_fen: number }>;
+  const monthlyMap = new Map<string, number>();
+  const daily = dailyBalanceRows.map((row) => {
+    const balanceFen = Number(row.balance_fen);
+    const month = row.period.slice(0, 7);
+    monthlyMap.set(month, (monthlyMap.get(month) ?? 0) + balanceFen);
+    return { period: row.period, balanceFen };
+  });
+  return {
+    items: rows.map(mapTransaction),
+    total: Number(totalRow.count),
+    page,
+    pageSize,
+    balances: {
+      daily,
+      monthly: [...monthlyMap.entries()].map(([period, balanceFen]) => ({ period, balanceFen })),
+    },
+  };
+}
+
+function commonTransactionSignature(input: CommonTransactionKey): string {
+  return `${input.type}:${input.amountFen}:${input.categoryId}:${input.subcategoryId ?? 0}`;
 }
 
 export function listCommonTransactions(handle: DatabaseHandle, userId: number, limit = 6): CommonTransactionRecord[] {
   const safeLimit = Math.min(12, Math.max(1, Math.trunc(limit)));
-  const rows = handle.sqlite
+  const recentRows = handle.sqlite
     .prepare(
       `with recent as (
          select type, amount_fen, category_id, subcategory_id, occurred_at
@@ -756,10 +803,9 @@ export function listCommonTransactions(handle: DatabaseHandle, userId: number, l
        left join categories sc on sc.id = r.subcategory_id and sc.user_id = ?
        where r.subcategory_id is null or sc.is_archived = 0
        group by r.type, r.amount_fen, r.category_id, c.name, r.subcategory_id, sc.name
-       order by usage_count desc, last_used_at desc
-       limit ?`,
+       order by usage_count desc, last_used_at desc`,
     )
-    .all(userId, userId, userId, safeLimit) as Array<{
+    .all(userId, userId, userId) as Array<{
       type: TransactionType;
       amount_fen: number;
       category_id: number;
@@ -769,7 +815,7 @@ export function listCommonTransactions(handle: DatabaseHandle, userId: number, l
       usage_count: number;
       last_used_at: number;
     }>;
-  return rows.map((row) => ({
+  const recent = recentRows.map((row) => ({
     type: row.type,
     amountFen: Number(row.amount_fen),
     categoryId: Number(row.category_id),
@@ -778,7 +824,78 @@ export function listCommonTransactions(handle: DatabaseHandle, userId: number, l
     subcategoryName: row.subcategory_name,
     usageCount: Number(row.usage_count),
     lastUsedAt: Number(row.last_used_at),
-  }));
+    isPinned: false,
+  } satisfies CommonTransactionRecord));
+  const recentBySignature = new Map(recent.map((item) => [commonTransactionSignature(item), item]));
+
+  const pinnedRows = handle.sqlite
+    .prepare(
+      `select p.type, p.amount_fen, p.category_id, c.name as category_name,
+              p.subcategory_id, sc.name as subcategory_name, p.pinned_at
+       from common_transaction_pins p
+       join categories c on c.id = p.category_id and c.user_id = p.user_id and c.is_archived = 0
+       left join categories sc on sc.id = p.subcategory_id and sc.user_id = p.user_id
+       where p.user_id = ? and (p.subcategory_id is null or sc.is_archived = 0)
+       order by p.pinned_at desc`,
+    )
+    .all(userId) as Array<{
+      type: TransactionType;
+      amount_fen: number;
+      category_id: number;
+      category_name: string;
+      subcategory_id: number | null;
+      subcategory_name: string | null;
+      pinned_at: number;
+    }>;
+  const pinned = pinnedRows.map((row) => {
+    const key: CommonTransactionKey = {
+      type: row.type,
+      amountFen: Number(row.amount_fen),
+      categoryId: Number(row.category_id),
+      subcategoryId: row.subcategory_id == null ? null : Number(row.subcategory_id),
+    };
+    const matchingRecent = recentBySignature.get(commonTransactionSignature(key));
+    return {
+      ...key,
+      subcategoryId: key.subcategoryId ?? null,
+      categoryName: row.category_name,
+      subcategoryName: row.subcategory_name,
+      usageCount: matchingRecent?.usageCount ?? 0,
+      lastUsedAt: matchingRecent?.lastUsedAt ?? Number(row.pinned_at),
+      isPinned: true,
+    } satisfies CommonTransactionRecord;
+  });
+  const pinnedSignatures = new Set(pinned.map((item) => commonTransactionSignature(item)));
+  return [...pinned, ...recent.filter((item) => !pinnedSignatures.has(commonTransactionSignature(item)))].slice(0, safeLimit);
+}
+
+export function setCommonTransactionPinned(
+  handle: DatabaseHandle,
+  userId: number,
+  input: CommonTransactionKey,
+  pinned: boolean,
+): boolean {
+  if (!Number.isSafeInteger(input.amountFen) || input.amountFen <= 0) return false;
+  const category = getCategory(handle, userId, input.categoryId);
+  if (!category || category.isArchived || category.parentId !== null || category.type !== input.type) return false;
+  if (input.subcategoryId != null) {
+    const subcategory = getCategory(handle, userId, input.subcategoryId);
+    if (!subcategory || subcategory.isArchived || subcategory.parentId !== category.id || subcategory.type !== input.type) return false;
+  }
+  const signature = commonTransactionSignature(input);
+  if (!pinned) {
+    handle.sqlite.prepare('delete from common_transaction_pins where user_id = ? and signature = ?').run(userId, signature);
+    return true;
+  }
+  handle.sqlite
+    .prepare(
+      `insert into common_transaction_pins
+       (user_id, signature, type, amount_fen, category_id, subcategory_id, pinned_at)
+       values (?, ?, ?, ?, ?, ?, ?)
+       on conflict(user_id, signature) do update set pinned_at = excluded.pinned_at`,
+    )
+    .run(userId, signature, input.type, input.amountFen, input.categoryId, input.subcategoryId ?? null, Date.now());
+  return true;
 }
 
 export function listTransactionsForRange(handle: DatabaseHandle, userId: number, from: number, to: number): TransactionRecord[] {

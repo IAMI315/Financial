@@ -1,7 +1,12 @@
 import type { Transaction } from '../types';
+import { money } from '../api';
 
 type MonthlyTransactionTablesProps = {
   items: Transaction[];
+  balances?: {
+    daily: Array<{ period: string; balanceFen: number }>;
+    monthly: Array<{ period: string; balanceFen: number }>;
+  };
   readOnly?: boolean;
   onEdit?: (item: Transaction) => void;
   onDelete?: (item: Transaction) => void;
@@ -38,8 +43,13 @@ function groupByDay(items: Transaction[]): Array<[string, Transaction[]]> {
   return [...days.entries()];
 }
 
+function balanceFen(items: Transaction[]): number {
+  return items.reduce((total, item) => total + (item.type === 'income' ? item.amountFen : -item.amountFen), 0);
+}
+
 export function MonthlyTransactionTables({
   items,
+  balances,
   readOnly = false,
   onEdit,
   onDelete,
@@ -51,6 +61,8 @@ export function MonthlyTransactionTables({
     bucket.push(item);
     groups.set(month, bucket);
   }
+  const dailyBalanceMap = new Map(balances?.daily.map((item) => [item.period, item.balanceFen]) ?? []);
+  const monthlyBalanceMap = new Map(balances?.monthly.map((item) => [item.period, item.balanceFen]) ?? []);
 
   if (items.length === 0) return <p className="empty">没有符合条件的交易。</p>;
 
@@ -63,14 +75,14 @@ export function MonthlyTransactionTables({
               <span className="eyebrow">月度流水</span>
               <h3>{monthLabel(month)}</h3>
             </div>
-            <span>{monthItems.length} 笔</span>
+            {(() => { const balance = monthlyBalanceMap.get(month) ?? balanceFen(monthItems); return <div className="ledger-title-summary"><span>{monthItems.length} 笔</span><b className={balance >= 0 ? 'positive' : 'negative'}>当月结余 {money(balance)}</b></div>; })()}
           </div>
           <div className="day-ledgers">
             {groupByDay(monthItems).map(([day, dayItems]) => (
               <section className="day-ledger" key={day}>
                 <div className="day-ledger-title">
                   <strong>{dayLabel(day)}</strong>
-                  <span>{dayItems.length} 笔</span>
+                  {(() => { const balance = dailyBalanceMap.get(day) ?? balanceFen(dayItems); return <div className="ledger-title-summary"><span>{dayItems.length} 笔</span><b className={balance >= 0 ? 'positive' : 'negative'}>当天结余 {money(balance)}</b></div>; })()}
                 </div>
                 <div className="ledger-table-wrap">
                   <table className="ledger-table">
