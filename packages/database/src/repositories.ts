@@ -47,6 +47,17 @@ export type TransactionRecord = {
   updatedAt: number;
 };
 
+export type CommonTransactionRecord = {
+  type: TransactionType;
+  amountFen: number;
+  categoryId: number;
+  categoryName: string;
+  subcategoryId: number | null;
+  subcategoryName: string | null;
+  usageCount: number;
+  lastUsedAt: number;
+};
+
 export type TransactionFilters = {
   from?: number | undefined;
   to?: number | undefined;
@@ -719,6 +730,55 @@ export function listTransactions(
     )
     .all(userId, ...where.params, pageSize, (page - 1) * pageSize) as Array<Record<string, unknown>>;
   return { items: rows.map(mapTransaction), total: Number(totalRow.count), page, pageSize };
+}
+
+export function listCommonTransactions(handle: DatabaseHandle, userId: number, limit = 6): CommonTransactionRecord[] {
+  const safeLimit = Math.min(12, Math.max(1, Math.trunc(limit)));
+  const rows = handle.sqlite
+    .prepare(
+      `with recent as (
+         select type, amount_fen, category_id, subcategory_id, occurred_at
+         from transactions
+         where user_id = ?
+         order by occurred_at desc, id desc
+         limit 200
+       )
+       select r.type,
+              r.amount_fen,
+              r.category_id,
+              c.name as category_name,
+              r.subcategory_id,
+              sc.name as subcategory_name,
+              count(*) as usage_count,
+              max(r.occurred_at) as last_used_at
+       from recent r
+       join categories c on c.id = r.category_id and c.user_id = ? and c.is_archived = 0
+       left join categories sc on sc.id = r.subcategory_id and sc.user_id = ?
+       where r.subcategory_id is null or sc.is_archived = 0
+       group by r.type, r.amount_fen, r.category_id, c.name, r.subcategory_id, sc.name
+       order by usage_count desc, last_used_at desc
+       limit ?`,
+    )
+    .all(userId, userId, userId, safeLimit) as Array<{
+      type: TransactionType;
+      amount_fen: number;
+      category_id: number;
+      category_name: string;
+      subcategory_id: number | null;
+      subcategory_name: string | null;
+      usage_count: number;
+      last_used_at: number;
+    }>;
+  return rows.map((row) => ({
+    type: row.type,
+    amountFen: Number(row.amount_fen),
+    categoryId: Number(row.category_id),
+    categoryName: row.category_name,
+    subcategoryId: row.subcategory_id == null ? null : Number(row.subcategory_id),
+    subcategoryName: row.subcategory_name,
+    usageCount: Number(row.usage_count),
+    lastUsedAt: Number(row.last_used_at),
+  }));
 }
 
 export function listTransactionsForRange(handle: DatabaseHandle, userId: number, from: number, to: number): TransactionRecord[] {

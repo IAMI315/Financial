@@ -2,20 +2,23 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, currentShanghaiMonth, money } from '../api';
 import { QuickEntry } from '../components/QuickEntry';
 import { IncomeExpenseTrend } from '../components/IncomeExpenseTrend';
-import type { Category, MonthlyStats, Transaction } from '../types';
+import type { Category, CommonTransaction, MonthlyStats, Transaction } from '../types';
 
 export function HomePage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [stats, setStats] = useState<MonthlyStats | null>(null);
   const [recent, setRecent] = useState<Transaction[]>([]);
+  const [commonEntries, setCommonEntries] = useState<CommonTransaction[]>([]);
 
   const loadDashboard = useCallback(async () => {
-    const [statResult, transactionResult] = await Promise.all([
+    const [statResult, transactionResult, commonResult] = await Promise.all([
       api<MonthlyStats>(`/api/stats/monthly?month=${currentShanghaiMonth()}`),
       api<{ items: Transaction[] }>('/api/transactions?page=1&pageSize=10'),
+      api<{ items: CommonTransaction[] }>('/api/transactions/common?limit=8'),
     ]);
     setStats(statResult);
     setRecent(transactionResult.items);
+    setCommonEntries(commonResult.items);
   }, []);
 
   useEffect(() => {
@@ -31,7 +34,7 @@ export function HomePage() {
 
   return (
     <div className="page-grid home-grid">
-      <QuickEntry categories={categories} onSaved={() => void loadDashboard()} onCategoryCreated={(category) => setCategories((current) => [...current, category])} />
+      <QuickEntry categories={categories} commonEntries={commonEntries} onSaved={() => void loadDashboard()} onCategoryCreated={(category) => setCategories((current) => [...current, category])} />
       <div className="dashboard-column">
         <section className="summary-grid">
           <article className="metric"><span>本月收入</span><strong>{money(stats?.incomeFen ?? 0)}</strong></article>

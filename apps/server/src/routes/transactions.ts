@@ -4,6 +4,7 @@ import {
   deleteTransaction,
   getTransaction,
   listTransactions,
+  listCommonTransactions,
   type TransactionFilters,
 } from '@financial/database';
 import { epochMsToShanghaiDateTime, formatFenToCny, shanghaiDateTimeToEpochMs } from '@financial/domain';
@@ -75,6 +76,20 @@ export function registerTransactionRoutes(app: FastifyInstance, state: AppState)
     if (!filters) return reply.code(400).send({ error: 'INVALID_FILTER', message: '流水筛选参数无效' });
     const result = listTransactions(state.database.current, auth.user.id, filters);
     return { ...result, items: result.items.map(serializeTransaction) };
+  });
+
+  app.get('/api/transactions/common', async (request, reply) => {
+    const auth = requireAuth(request, reply, state);
+    if (!auth) return;
+    const query = z.object({ limit: z.coerce.number().int().min(1).max(12).optional() }).safeParse(request.query);
+    if (!query.success) return reply.code(400).send({ error: 'INVALID_LIMIT' });
+    const items = listCommonTransactions(state.database.current, auth.user.id, query.data.limit ?? 6);
+    return {
+      items: items.map((item) => ({
+        ...item,
+        amount: formatFenToCny(item.amountFen),
+      })),
+    };
   });
 
   app.get('/api/transactions/:id', async (request, reply) => {

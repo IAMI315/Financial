@@ -43,6 +43,18 @@ export type Transaction = {
   importBatchId: number | null;
 };
 
+export type CommonTransaction = {
+  type: TransactionType;
+  amountFen: number;
+  amount: string;
+  categoryId: number;
+  categoryName: string;
+  subcategoryId: number | null;
+  subcategoryName: string | null;
+  usageCount: number;
+  lastUsedAt: number;
+};
+
 export type MonthlyStats = {
   month: string;
   incomeFen: number;
