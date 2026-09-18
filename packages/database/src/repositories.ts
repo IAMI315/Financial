@@ -64,7 +64,9 @@ export type TransactionFilters = {
   to?: number | undefined;
   type?: TransactionType | undefined;
   categoryId?: number | undefined;
+  categoryName?: string | undefined;
   subcategoryId?: number | undefined;
+  subcategoryName?: string | undefined;
   keyword?: string | undefined;
   page?: number | undefined;
   pageSize?: number | undefined;
@@ -704,9 +706,17 @@ function transactionWhere(filters: TransactionFilters): { sql: string; params: u
     clauses.push('t.category_id = ?');
     params.push(filters.categoryId);
   }
+  if (filters.categoryName) {
+    clauses.push("exists (select 1 from categories fc where fc.id = t.category_id and fc.parent_id is null and fc.name = ?)");
+    params.push(filters.categoryName);
+  }
   if (filters.subcategoryId != null) {
     clauses.push('t.subcategory_id = ?');
     params.push(filters.subcategoryId);
+  }
+  if (filters.subcategoryName) {
+    clauses.push("exists (select 1 from categories fsc where fsc.id = t.subcategory_id and fsc.name = ?)");
+    params.push(filters.subcategoryName);
   }
   if (filters.keyword) {
     clauses.push("coalesce(t.note, '') like ? escape '\\'");

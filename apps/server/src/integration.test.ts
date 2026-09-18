@@ -112,6 +112,40 @@ describe('V1 API integration', () => {
     expect(duplicate.json().error).toBe('POTENTIAL_DUPLICATE');
   });
 
+  it('filters same-name root categories across income and expense when type is all', async () => {
+    const user = await register('SharedCategoryFilter', null);
+    const categoriesResponse = await app.inject({ method: 'GET', url: '/api/categories', headers: { cookie: user.cookie } });
+    const categories = categoriesResponse.json().categories as Array<{ id: number; type: string; name: string; parentId: number | null }>;
+    const expenseBusiness = categories.find((item) => item.type === 'expense' && item.name === '经营' && item.parentId === null)!;
+    const incomeBusiness = categories.find((item) => item.type === 'income' && item.name === '经营' && item.parentId === null)!;
+
+    for (const payload of [
+      { type: 'expense', amount: '12.00', categoryId: expenseBusiness.id, occurredAtLocal: '2026-01-02T10:00:00' },
+      { type: 'income', amount: '30.00', categoryId: incomeBusiness.id, occurredAtLocal: '2026-01-03T10:00:00' },
+    ]) {
+      const response = await app.inject({ method: 'POST', url: '/api/transactions', headers: { cookie: user.cookie }, payload });
+      expect(response.statusCode).toBe(201);
+    }
+
+    const combined = await app.inject({
+      method: 'GET',
+      url: '/api/transactions?categoryName=%E7%BB%8F%E8%90%A5&page=1&pageSize=100',
+      headers: { cookie: user.cookie },
+    });
+    expect(combined.statusCode).toBe(200);
+    expect(combined.json().total).toBe(2);
+    expect(new Set(combined.json().items.map((item: { type: string }) => item.type))).toEqual(new Set(['income', 'expense']));
+
+    const incomeOnly = await app.inject({
+      method: 'GET',
+      url: '/api/transactions?type=income&categoryName=%E7%BB%8F%E8%90%A5&page=1&pageSize=100',
+      headers: { cookie: user.cookie },
+    });
+    expect(incomeOnly.statusCode).toBe(200);
+    expect(incomeOnly.json().total).toBe(1);
+    expect(incomeOnly.json().items[0]).toMatchObject({ type: 'income', categoryName: '经营' });
+  });
+
   it('persists drag ordering independently for root and child categories', async () => {
     const user = await register('OrderUser', null);
     const response = await app.inject({ method: 'GET', url: '/api/categories', headers: { cookie: user.cookie } });

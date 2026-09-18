@@ -27,7 +27,7 @@ type EditState = {
 export function TransactionsPage() {
   const [categories, setCategories] = useState<Category[]>([]);
   const [result, setResult] = useState<TransactionList>({ items: [], total: 0, page: 1, pageSize: 100, balances: { daily: [], monthly: [] } });
-  const [filters, setFilters] = useState({ from: '', to: '', type: '', categoryId: '', subcategoryId: '', keyword: '' });
+  const [filters, setFilters] = useState({ from: '', to: '', type: '', categoryId: '', categoryName: '', subcategoryId: '', subcategoryName: '', keyword: '' });
   const [debouncedKeyword, setDebouncedKeyword] = useState('');
   const [loading, setLoading] = useState(false);
   const requestId = useRef(0);
@@ -67,12 +67,52 @@ export function TransactionsPage() {
   useEffect(() => { void loadPage(1); }, [search]);
 
   const rootCategories = categories.filter((item) => item.parentId === null && (!filters.type || item.type === filters.type));
-  const subcategories = categories.filter((item) => item.parentId === Number(filters.categoryId));
+  const rootCategoryNames = useMemo(() => {
+    const groups = new Map<string, { name: string; allArchived: boolean }>();
+    for (const item of categories.filter((category) => category.parentId === null)) {
+      const existing = groups.get(item.name);
+      groups.set(item.name, { name: item.name, allArchived: existing ? existing.allArchived && item.isArchived : item.isArchived });
+    }
+    return [...groups.values()];
+  }, [categories]);
+  const matchingRootIds = filters.type || !filters.categoryName
+    ? []
+    : categories.filter((item) => item.parentId === null && item.name === filters.categoryName).map((item) => item.id);
+  const subcategories = filters.type
+    ? categories.filter((item) => item.parentId === Number(filters.categoryId))
+    : categories.filter((item) => item.parentId != null && matchingRootIds.includes(item.parentId));
+  const subcategoryNames = useMemo(() => {
+    const names = new Set<string>();
+    for (const item of subcategories) names.add(item.name);
+    return [...names];
+  }, [subcategories]);
   const editRoots = categories.filter((item) => item.parentId === null && item.type === edit?.type);
   const editChildren = categories.filter((item) => item.parentId === edit?.categoryId);
 
   function updateFilter(name: string, value: string) {
-    setFilters((current) => ({ ...current, [name]: value, ...(name === 'type' ? { categoryId: '', subcategoryId: '' } : {}), ...(name === 'categoryId' ? { subcategoryId: '' } : {}) }));
+    setFilters((current) => ({
+      ...current,
+      [name]: value,
+      ...(name === 'type' ? { categoryId: '', categoryName: '', subcategoryId: '', subcategoryName: '' } : {}),
+    }));
+  }
+
+  function updateRootCategoryFilter(value: string) {
+    setFilters((current) => ({
+      ...current,
+      categoryId: current.type ? value : '',
+      categoryName: current.type ? '' : value,
+      subcategoryId: '',
+      subcategoryName: '',
+    }));
+  }
+
+  function updateSubcategoryFilter(value: string) {
+    setFilters((current) => ({
+      ...current,
+      subcategoryId: current.type ? value : '',
+      subcategoryName: current.type ? '' : value,
+    }));
   }
 
   async function saveEdit() {
@@ -113,8 +153,8 @@ export function TransactionsPage() {
           <label>开始日期<input type="date" value={filters.from} onChange={(event) => updateFilter('from', event.target.value)} /></label>
           <label>结束日期<input type="date" value={filters.to} onChange={(event) => updateFilter('to', event.target.value)} /></label>
           <label>类型<select value={filters.type} onChange={(event) => updateFilter('type', event.target.value)}><option value="">全部</option><option value="expense">支出</option><option value="income">收入</option></select></label>
-          <label>一级分类<select value={filters.categoryId} onChange={(event) => updateFilter('categoryId', event.target.value)}><option value="">全部</option>{rootCategories.map((item) => <option key={item.id} value={item.id}>{item.name}{item.isArchived ? '（已归档）' : ''}</option>)}</select></label>
-          <label>二级分类<select value={filters.subcategoryId} onChange={(event) => updateFilter('subcategoryId', event.target.value)}><option value="">全部</option>{subcategories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <label>一级分类<select value={filters.type ? filters.categoryId : filters.categoryName} onChange={(event) => updateRootCategoryFilter(event.target.value)}><option value="">全部</option>{filters.type ? rootCategories.map((item) => <option key={item.id} value={item.id}>{item.name}{item.isArchived ? '（已归档）' : ''}</option>) : rootCategoryNames.map((item) => <option key={item.name} value={item.name}>{item.name}{item.allArchived ? '（已归档）' : ''}</option>)}</select></label>
+          <label>二级分类<select value={filters.type ? filters.subcategoryId : filters.subcategoryName} onChange={(event) => updateSubcategoryFilter(event.target.value)}><option value="">全部</option>{filters.type ? subcategories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>) : subcategoryNames.map((name) => <option key={name} value={name}>{name}</option>)}</select></label>
           <label>备注关键词<input value={filters.keyword} onChange={(event) => updateFilter('keyword', event.target.value)} placeholder="搜索备注" /></label>
         </div>
       </section>

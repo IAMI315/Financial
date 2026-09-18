@@ -51,7 +51,9 @@ function parseFilterQuery(query: unknown): TransactionFilters | null {
       to: z.string().optional(),
       type: z.enum(['income', 'expense']).optional(),
       categoryId: z.coerce.number().int().positive().optional(),
+      categoryName: z.string().min(1).max(40).optional(),
       subcategoryId: z.coerce.number().int().positive().optional(),
+      subcategoryName: z.string().min(1).max(40).optional(),
       keyword: z.string().max(100).optional(),
       page: z.coerce.number().int().positive().optional(),
       pageSize: z.coerce.number().int().positive().max(100).optional(),
@@ -61,7 +63,9 @@ function parseFilterQuery(query: unknown): TransactionFilters | null {
   const filters: TransactionFilters = {};
   if (parsed.data.type) filters.type = parsed.data.type;
   if (parsed.data.categoryId != null) filters.categoryId = parsed.data.categoryId;
+  if (parsed.data.categoryName) filters.categoryName = parsed.data.categoryName;
   if (parsed.data.subcategoryId != null) filters.subcategoryId = parsed.data.subcategoryId;
+  if (parsed.data.subcategoryName) filters.subcategoryName = parsed.data.subcategoryName;
   if (parsed.data.keyword) filters.keyword = parsed.data.keyword;
   if (parsed.data.page != null) filters.page = parsed.data.page;
   if (parsed.data.pageSize != null) filters.pageSize = parsed.data.pageSize;
