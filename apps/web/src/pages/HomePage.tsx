@@ -2,6 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import { api, currentShanghaiMonth, money, shanghaiNowLocal } from '../api';
 import { QuickEntry } from '../components/QuickEntry';
 import { IncomeExpenseTrend } from '../components/IncomeExpenseTrend';
+import { CategoryIcon } from '../components/CategoryIcon';
+import { formatRecentTransactionTime } from '../utils/displayTime';
 import type { Category, CommonTransaction, DailyMustItem, MonthlyStats, Transaction } from '../types';
 import type { Page } from '../App';
 
@@ -75,16 +77,16 @@ export function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
         </section>
         <IncomeExpenseTrend stats={stats} title="本月收支趋势" month={selectedMonth} onMonthChange={setSelectedMonth} />
         <section className="panel home-recent-panel">
-          <div className="panel-title"><div><span className="eyebrow">流水</span><h2>最近交易</h2></div><button type="button" className="dashboard-link" onClick={() => onNavigate('transactions')}>查看更多 <span aria-hidden="true">›</span></button></div>
+          <div className="panel-title"><div><h2>最近交易</h2></div><button type="button" className="dashboard-link" onClick={() => onNavigate('transactions')}>查看更多 <span aria-hidden="true">›</span></button></div>
           {recent.length === 0 ? <p className="empty">还没有交易，先记第一笔吧。</p> : (
             <div className="home-recent-table">
               <div className="home-recent-head"><span>时间</span><span>分类</span><span>备注</span><span>金额</span></div>
               {recent.map((item) => (
                 <div className="home-recent-row" key={item.id}>
-                  <span>{item.occurredAtLocal.slice(5, 10)} {item.occurredAtLocal.slice(11, 16)}</span>
-                  <strong>{item.categoryName}{item.subcategoryName ? ` · ${item.subcategoryName}` : ''}</strong>
+                  <span>{formatRecentTransactionTime(item.occurredAtLocal, shanghaiNowLocal())}</span>
+                  <div className="home-recent-category"><CategoryIcon categoryName={item.categoryName} type={item.type} size="sm" /><strong>{item.categoryName}{item.subcategoryName ? ` · ${item.subcategoryName}` : ''}</strong></div>
                   <span>{item.note || '—'}</span>
-                  <b className={item.type}>{item.type === 'expense' ? '-' : '+'}{money(item.amountFen)}</b>
+                  <b className={item.type}>{item.type === 'expense' ? '- ' : '+ '}{money(item.amountFen)}</b>
                 </div>
               ))}
             </div>

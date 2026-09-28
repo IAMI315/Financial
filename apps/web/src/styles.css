@@ -237,8 +237,10 @@ details textarea { margin-top: 8px; }
 .home-recent-head, .home-recent-row { display: grid; grid-template-columns: 88px minmax(130px, 1fr) minmax(100px, 1fr) auto; gap: 10px; align-items: center; min-height: 38px; border-bottom: 1px solid #edf1f6; padding: 7px 4px; }
 .home-recent-head { min-height: 30px; border-radius: 8px; background: #f7f9fc; color: #8792a5; font-size: 10px; }
 .home-recent-row > span { min-width: 0; overflow: hidden; color: #71809a; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
+.home-recent-category { min-width: 0; display: flex; align-items: center; gap: 7px; }
+.home-recent-category strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .home-recent-row strong { min-width: 0; overflow: hidden; color: #43516a; font-size: 11px; text-overflow: ellipsis; white-space: nowrap; }
-.home-recent-row b { font-size: 12px; white-space: nowrap; text-align: right; }
+.home-recent-row b { font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; text-align: right; }
 .home-recent-row b.income { color: var(--income); }
 .home-recent-row b.expense { color: var(--expense); }
 
