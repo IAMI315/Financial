@@ -1,6 +1,7 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { ApiError, api, shanghaiNowLocal } from '../api';
 import { DailyMustEntry } from './DailyMustEntry';
+import { AmountCalculator } from './AmountCalculator';
 import type { Category, CommonTransaction, DailyMustItem, TransactionType } from '../types';
 
 export function QuickEntry({
@@ -23,6 +24,7 @@ export function QuickEntry({
   const [type, setType] = useState<TransactionType>('expense');
   const [amount, setAmount] = useState('');
   const [amountFromCommon, setAmountFromCommon] = useState(false);
+  const [showCalculator, setShowCalculator] = useState(false);
   const [categoryId, setCategoryId] = useState<number | ''>('');
   const [subcategoryId, setSubcategoryId] = useState<number | ''>('');
   const [occurredAtLocal, setOccurredAtLocal] = useState(shanghaiNowLocal());
@@ -271,7 +273,7 @@ export function QuickEntry({
         <button type="button" className={type === 'expense' ? 'active' : ''} onClick={() => switchType('expense')}>支出</button>
         <button type="button" className={type === 'income' ? 'active' : ''} onClick={() => switchType('income')}>收入</button>
       </div>
-      <div className="money-field"><span>¥</span><input value={amount} onChange={(event) => { setAmount(event.target.value); setAmountFromCommon(false); }} onClick={() => { if (amountFromCommon) { setAmount(''); setAmountFromCommon(false); } }} inputMode="decimal" placeholder="0.00" aria-label="金额" /></div>
+      <div className="money-row"><div className="money-field"><span>¥</span><input value={amount} onChange={(event) => { setAmount(event.target.value); setAmountFromCommon(false); }} onClick={() => { if (amountFromCommon) { setAmount(''); setAmountFromCommon(false); } }} inputMode="decimal" placeholder="0.00" aria-label="金额" /></div><div className="calculator-anchor"><button type="button" className="calculator-trigger" onClick={() => setShowCalculator((value) => !value)} aria-expanded={showCalculator}><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="4" width="20" height="24" rx="4"/><rect x="10" y="8" width="12" height="5" rx="1"/><path d="M10 18h2M16 18h2M22 18h.01M10 23h2M16 23h2M22 23h.01"/></svg><span>计算器</span></button>{showCalculator && <AmountCalculator initialValue={amount} onClose={() => setShowCalculator(false)} onConfirm={(value) => { setAmount(value); setAmountFromCommon(false); }} />}</div></div>
       <div className="quick-category-layout">
         <div className="common-entry-workspace">
           <div className="category-section-title"><span>最近常用</span></div>
