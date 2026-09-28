@@ -11,7 +11,7 @@ import { StatsPage } from './pages/StatsPage';
 import { TransactionsPage } from './pages/TransactionsPage';
 import type { User } from './types';
 
-type Page = 'home' | 'transactions' | 'stats' | 'categories' | 'import' | 'settings' | 'user-view' | 'admin';
+export type Page = 'home' | 'transactions' | 'stats' | 'categories' | 'import' | 'settings' | 'user-view' | 'admin';
 
 const navigation: Array<{ page: Page; label: string; icon: string }> = [
   { page: 'home', label: '首页', icon: '⌂' },
@@ -39,7 +39,7 @@ export function App() {
   if (user.mustChangePassword) return <main className="forced-password"><SettingsPage forced onDeleted={() => setUser(null)} /></main>;
 
   const pages: Record<Page, React.ReactNode> = {
-    home: <HomePage />,
+    home: <HomePage onNavigate={setPage} />,
     transactions: <TransactionsPage />,
     stats: <StatsPage />,
     categories: <CategoriesPage isAdmin={user.role === 'admin'} />,

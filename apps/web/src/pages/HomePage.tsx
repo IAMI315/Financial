@@ -3,8 +3,9 @@ import { api, currentShanghaiMonth, money, shanghaiNowLocal } from '../api';
 import { QuickEntry } from '../components/QuickEntry';
 import { IncomeExpenseTrend } from '../components/IncomeExpenseTrend';
 import type { Category, CommonTransaction, DailyMustItem, MonthlyStats, Transaction } from '../types';
+import type { Page } from '../App';
 
-export function HomePage() {
+export function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [stats, setStats] = useState<MonthlyStats | null>(null);
   const [recent, setRecent] = useState<Transaction[]>([]);
@@ -41,7 +42,7 @@ export function HomePage() {
         </section>
         <IncomeExpenseTrend stats={stats} title="本月收支趋势" periodLabel={`${currentShanghaiMonth().replace('-', '年')}月`} />
         <section className="panel home-recent-panel">
-          <div className="panel-title"><div><span className="eyebrow">流水</span><h2>最近交易</h2></div><span className="home-recent-count">最近 {recent.length} 笔</span></div>
+          <div className="panel-title"><div><span className="eyebrow">流水</span><h2>最近交易</h2></div><button type="button" className="dashboard-link" onClick={() => onNavigate('transactions')}>查看更多 <span aria-hidden="true">›</span></button></div>
           {recent.length === 0 ? <p className="empty">还没有交易，先记第一笔吧。</p> : (
             <div className="home-recent-table">
               <div className="home-recent-head"><span>时间</span><span>分类</span><span>备注</span><span>金额</span></div>
