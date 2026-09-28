@@ -265,7 +265,7 @@ export function QuickEntry({
 
   return (
     <section className="panel quick-entry">
-      <div className="panel-title quick-entry-panel-title"><div><h2>快速记账</h2><span>随手记录每一笔，让生活更清晰</span></div><span className="online-dot">联网</span></div>
+      <div className="panel-title quick-entry-panel-title"><div><h2>快速记账</h2><span>随手记录每一笔，让生活更清晰</span></div></div>
       <DailyMustEntry items={dailyMustEntries} categories={categories} onSelect={applyDailyMustEntry} onRefresh={onDailyMustChanged} />
       <div className="segmented compact">
         <button type="button" className={type === 'expense' ? 'active' : ''} onClick={() => switchType('expense')}>支出</button>

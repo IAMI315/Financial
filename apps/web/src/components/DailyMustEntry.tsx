@@ -118,7 +118,7 @@ export function DailyMustEntry({
     <section className="daily-must-headline">
       <div className="daily-must-header">
         <div className="daily-must-heading">
-          <span className="daily-must-calendar">▣</span>
+          <span className="daily-must-calendar"><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="8" width="20" height="18" rx="4"/><path d="M10 5v6M22 5v6M6 13h20M11 18h4M18 18h3M11 22h3"/></svg></span>
           <div><h3>今日必记</h3><span>{displayDate()}</span></div>
         </div>
         <div className="daily-must-header-actions"><div className="daily-must-progress-meta"><strong>{completed} / {items.length}</strong><span>已完成</span></div><button className="daily-must-add-button" type="button" onClick={() => startEdit()}>＋</button></div>
