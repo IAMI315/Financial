@@ -84,6 +84,17 @@ export type MonthlyStats = {
   incomeFen: number;
   expenseFen: number;
   balanceFen: number;
+  previous: {
+    month: string;
+    incomeFen: number;
+    expenseFen: number;
+    balanceFen: number;
+  };
+  comparison: {
+    incomePercent: number | null;
+    expensePercent: number | null;
+    balancePercent: number | null;
+  };
   incomeCategories: Array<{ id: number; name: string; amountFen: number }>;
   expenseCategories: Array<{ id: number; name: string; amountFen: number }>;
   subcategories: Array<{

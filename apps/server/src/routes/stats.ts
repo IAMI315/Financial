@@ -19,6 +19,22 @@ function monthBounds(month: string): { from: number; to: number } {
   };
 }
 
+function previousMonth(month: string): string {
+  const match = /^(\d{4})-(\d{2})$/.exec(month);
+  if (!match) throw new RangeError('月份格式无效');
+  const year = Number(match[1]);
+  const value = Number(match[2]);
+  if (value < 1 || value > 12) throw new RangeError('月份格式无效');
+  const previousYear = value === 1 ? year - 1 : year;
+  const previousValue = value === 1 ? 12 : value - 1;
+  return `${previousYear}-${String(previousValue).padStart(2, '0')}`;
+}
+
+function growthPercent(current: number, previous: number): number | null {
+  if (previous === 0) return current === 0 ? 0 : null;
+  return Number((((current - previous) / Math.abs(previous)) * 100).toFixed(1));
+}
+
 export function registerStatsRoutes(app: FastifyInstance, state: AppState): void {
   app.get('/api/stats/monthly', async (request, reply) => {
     const auth = requireAuth(request, reply, state);
@@ -32,10 +48,26 @@ export function registerStatsRoutes(app: FastifyInstance, state: AppState): void
       return reply.code(400).send({ error: 'INVALID_MONTH', message: error instanceof Error ? error.message : '月份无效' });
     }
     const stats = getTransactionStatsForRange(state.database.current, auth.user.id, bounds.from, bounds.to);
+    const previousMonthValue = previousMonth(query.data.month);
+    const previousBounds = monthBounds(previousMonthValue);
+    const previousStats = getTransactionStatsForRange(state.database.current, auth.user.id, previousBounds.from, previousBounds.to);
+    const balanceFen = stats.incomeFen - stats.expenseFen;
+    const previousBalanceFen = previousStats.incomeFen - previousStats.expenseFen;
     return {
       month: query.data.month,
       ...stats,
-      balanceFen: stats.incomeFen - stats.expenseFen,
+      balanceFen,
+      previous: {
+        month: previousMonthValue,
+        incomeFen: previousStats.incomeFen,
+        expenseFen: previousStats.expenseFen,
+        balanceFen: previousBalanceFen,
+      },
+      comparison: {
+        incomePercent: growthPercent(stats.incomeFen, previousStats.incomeFen),
+        expensePercent: growthPercent(stats.expenseFen, previousStats.expenseFen),
+        balancePercent: growthPercent(balanceFen, previousBalanceFen),
+      },
     };
   });
 }

@@ -213,7 +213,7 @@ details textarea { margin-top: 8px; }
 .metric strong { font-size: clamp(20px, 3vw, 29px); letter-spacing: -.03em; }
 .home-summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
 .home-metric { position: relative; min-height: 150px; align-content: start; gap: 6px; overflow: hidden; padding: 18px 16px; }
-.home-metric::after { content: ''; position: absolute; right: 12px; bottom: 14px; width: 44px; height: 54px; opacity: .12; background: repeating-linear-gradient(90deg, currentColor 0 5px, transparent 5px 9px); border-radius: 7px; }
+.home-metric::after { display: none; }
 .home-metric-icon { width: 38px; height: 38px; display: grid; place-items: center; border-radius: 50%; font-size: 20px !important; font-weight: 900; }
 .home-metric.income { color: #169a60; }
 .home-metric.income .home-metric-icon { background: #e2f7ec; color: #15985f; }
@@ -221,9 +221,16 @@ details textarea { margin-top: 8px; }
 .home-metric.expense .home-metric-icon { background: #ffe6e9; color: #e34756; }
 .home-metric.balance { color: #2c67d5; }
 .home-metric.balance .home-metric-icon { background: #eee8ff; color: #7653df; }
-.home-metric > span:not(.home-metric-icon) { color: #53627b; font-size: 12px; font-weight: 700; }
+.home-metric-label { color: #53627b !important; font-size: 12px !important; font-weight: 750; }
 .home-metric strong { color: currentColor; font-size: clamp(21px, 2.2vw, 28px); }
 .home-metric small { color: #8b96a8; font-size: 10px; }
+.metric-comparison { position: relative; z-index: 1; display: inline-flex; align-items: center; gap: 3px; width: max-content; }
+.metric-comparison b { font-size: 10px; }
+.home-metric.income .metric-comparison b, .home-metric.balance .metric-comparison b { color: #15985f; }
+.home-metric.expense .metric-comparison b { color: #e34756; }
+.metric-comparison.neutral b, .metric-comparison.flat b { color: #8994a7 !important; }
+.metric-mini-bars { position: absolute; right: 14px; bottom: 14px; height: 38px; display: flex; align-items: end; gap: 3px; color: currentColor; opacity: .18; }
+.metric-mini-bars i { width: 5px; min-height: 5px; border-radius: 5px 5px 2px 2px; background: currentColor; }
 .home-recent-panel { padding-bottom: 10px; }
 .home-recent-count { color: var(--muted); font-size: 11px; }
 .home-recent-table { display: grid; }

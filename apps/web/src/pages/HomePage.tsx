@@ -5,6 +5,27 @@ import { IncomeExpenseTrend } from '../components/IncomeExpenseTrend';
 import type { Category, CommonTransaction, DailyMustItem, MonthlyStats, Transaction } from '../types';
 import type { Page } from '../App';
 
+function MetricComparison({ value }: { value: number | null | undefined }) {
+  if (value == null) return <small className="metric-comparison neutral">较上月 <b>—</b></small>;
+  const direction = value > 0 ? 'up' : value < 0 ? 'down' : 'flat';
+  const sign = value > 0 ? '+' : '';
+  return <small className={`metric-comparison ${direction}`}>较上月 <b>{sign}{value.toFixed(1)}%</b> <span aria-hidden="true">{value > 0 ? '↑' : value < 0 ? '↓' : '→'}</span></small>;
+}
+
+function MetricMiniBars({ values }: { values: number[] }) {
+  const recent = values.slice(-7);
+  const max = Math.max(1, ...recent.map((value) => Math.abs(value)));
+  return <span className="metric-mini-bars" aria-hidden="true">{recent.map((value, index) => <i key={index} style={{ height: `${Math.max(5, Math.round(Math.abs(value) / max * 32))}px` }} />)}</span>;
+}
+
+function balanceSeries(stats: MonthlyStats | null): number[] {
+  if (!stats) return [];
+  const income = new Map(stats.dailyIncome.map((item) => [item.date, item.amountFen]));
+  const expense = new Map(stats.dailyExpense.map((item) => [item.date, item.amountFen]));
+  const dates = [...new Set([...income.keys(), ...expense.keys()])].sort();
+  return dates.map((date) => (income.get(date) ?? 0) - (expense.get(date) ?? 0));
+}
+
 export function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [stats, setStats] = useState<MonthlyStats | null>(null);
@@ -36,9 +57,9 @@ export function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
       <QuickEntry categories={categories} commonEntries={commonEntries} dailyMustEntries={dailyMustEntries} onCommonEntriesChanged={setCommonEntries} onDailyMustChanged={() => void loadDashboard()} onSaved={() => void loadDashboard()} onOpenCategories={() => onNavigate('categories')} />
       <div className="dashboard-column">
         <section className="summary-grid home-summary-grid">
-          <article className="metric home-metric income"><span className="home-metric-icon">↓</span><span>本月收入</span><strong>{money(stats?.incomeFen ?? 0)}</strong><small>本月累计</small></article>
-          <article className="metric home-metric expense"><span className="home-metric-icon">↑</span><span>本月支出</span><strong>{money(stats?.expenseFen ?? 0)}</strong><small>本月累计</small></article>
-          <article className="metric home-metric balance"><span className="home-metric-icon">▣</span><span>本月结余</span><strong>{money(stats?.balanceFen ?? 0)}</strong><small>收入 - 支出</small></article>
+          <article className="metric home-metric income"><span className="home-metric-icon">↓</span><span className="home-metric-label">本月收入</span><strong>{money(stats?.incomeFen ?? 0)}</strong><MetricComparison value={stats?.comparison.incomePercent} /><MetricMiniBars values={stats?.dailyIncome.map((item) => item.amountFen) ?? []} /></article>
+          <article className="metric home-metric expense"><span className="home-metric-icon">↑</span><span className="home-metric-label">本月支出</span><strong>{money(stats?.expenseFen ?? 0)}</strong><MetricComparison value={stats?.comparison.expensePercent} /><MetricMiniBars values={stats?.dailyExpense.map((item) => item.amountFen) ?? []} /></article>
+          <article className="metric home-metric balance"><span className="home-metric-icon">▣</span><span className="home-metric-label">本月结余</span><strong>{money(stats?.balanceFen ?? 0)}</strong><MetricComparison value={stats?.comparison.balancePercent} /><MetricMiniBars values={balanceSeries(stats)} /></article>
         </section>
         <IncomeExpenseTrend stats={stats} title="本月收支趋势" periodLabel={`${currentShanghaiMonth().replace('-', '年')}月`} />
         <section className="panel home-recent-panel">

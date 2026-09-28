@@ -304,9 +304,19 @@ describe('V1 API integration', () => {
       monthly: [{ period: '2026-02', balanceFen: 9_000 }],
     });
 
+    for (const payload of [
+      { type: 'expense', amount: '20.00', categoryId: food.id, occurredAtLocal: '2026-01-15T10:00:00' },
+      { type: 'income', amount: '80.00', categoryId: salary.id, occurredAtLocal: '2026-01-16T10:00:00' },
+    ]) {
+      const response = await app.inject({ method: 'POST', url: '/api/transactions', headers: { cookie: user.cookie }, payload });
+      expect(response.statusCode).toBe(201);
+    }
+
     const stats = await app.inject({ method: 'GET', url: '/api/stats/monthly?month=2026-02', headers: { cookie: user.cookie } });
     const statsBody = stats.json();
     expect(statsBody).toMatchObject({ incomeFen: 10_000, expenseFen: 1_000, balanceFen: 9_000 });
+    expect(statsBody.previous).toEqual({ month: '2026-01', incomeFen: 8_000, expenseFen: 2_000, balanceFen: 6_000 });
+    expect(statsBody.comparison).toEqual({ incomePercent: 25, expensePercent: -50, balancePercent: 50 });
     expect(statsBody.expenseCategories).toEqual([{ id: food.id, name: '餐饮', amountFen: 1_000 }]);
     expect(statsBody.incomeCategories).toEqual([{ id: salary.id, name: '工资', amountFen: 10_000 }]);
     expect(statsBody.dailyIncome).toEqual([{ date: '2026-02-02', amountFen: 10_000 }]);
