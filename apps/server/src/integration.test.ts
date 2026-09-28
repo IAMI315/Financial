@@ -204,7 +204,7 @@ describe('V1 API integration', () => {
     const salary = categories.find((category) => category.name === '工资' && category.type === 'income' && category.parentId === null)!;
     for (const payload of [
       { type: 'expense', amount: '4.50', categoryId: food.id, subcategoryId: breakfast.id, occurredAtLocal: '2026-03-01T08:00:00' },
-      { type: 'expense', amount: '4.50', categoryId: food.id, subcategoryId: breakfast.id, occurredAtLocal: '2026-03-02T08:00:00' },
+      { type: 'expense', amount: '6.25', categoryId: food.id, subcategoryId: breakfast.id, occurredAtLocal: '2026-03-02T08:00:00' },
       { type: 'income', amount: '20.00', categoryId: salary.id, occurredAtLocal: '2026-03-03T08:00:00' },
     ]) {
       const response = await app.inject({ method: 'POST', url: '/api/transactions', headers: { cookie: user.cookie }, payload });
@@ -213,11 +213,12 @@ describe('V1 API integration', () => {
     const common = await app.inject({ method: 'GET', url: '/api/transactions/common?limit=3', headers: { cookie: user.cookie } });
     expect(common.statusCode).toBe(200);
     expect(common.json().items[0]).toMatchObject({
-      type: 'expense', amountFen: 450, amount: '4.50', categoryId: food.id, categoryName: '餐饮', subcategoryId: breakfast.id, subcategoryName: '早餐', usageCount: 2, isPinned: false,
+      type: 'expense', amountFen: 625, amount: '6.25', categoryId: food.id, categoryName: '餐饮', subcategoryId: breakfast.id, subcategoryName: '早餐', usageCount: 2, isPinned: false,
     });
     expect(common.json().items[1]).toMatchObject({
       type: 'income', amountFen: 2000, amount: '20.00', categoryId: salary.id, categoryName: '工资', usageCount: 1, isPinned: false,
     });
+    expect(common.json().items.filter((item: { categoryId: number; subcategoryId: number | null }) => item.categoryId === food.id && item.subcategoryId === breakfast.id)).toHaveLength(1);
 
     const pin = await app.inject({
       method: 'PUT',
@@ -238,7 +239,7 @@ describe('V1 API integration', () => {
       payload: { type: 'income', amountFen: 2000, categoryId: salary.id, subcategoryId: null, pinned: false },
     });
     expect(unpin.statusCode).toBe(200);
-    expect(unpin.json().items[0]).toMatchObject({ type: 'expense', categoryId: food.id, amountFen: 450, isPinned: false });
+    expect(unpin.json().items[0]).toMatchObject({ type: 'expense', categoryId: food.id, amountFen: 625, isPinned: false });
   });
 
   it('calculates statistics and supports CSV import rollback atomically', async () => {

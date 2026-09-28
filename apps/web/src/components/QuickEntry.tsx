@@ -17,6 +17,7 @@ export function QuickEntry({
 }) {
   const [type, setType] = useState<TransactionType>('expense');
   const [amount, setAmount] = useState('');
+  const [amountFromCommon, setAmountFromCommon] = useState(false);
   const [categoryId, setCategoryId] = useState<number | ''>('');
   const [subcategoryId, setSubcategoryId] = useState<number | ''>('');
   const [occurredAtLocal, setOccurredAtLocal] = useState(shanghaiNowLocal());
@@ -174,6 +175,7 @@ export function QuickEntry({
   function applyCommonEntry(entry: CommonTransaction) {
     setType(entry.type);
     setAmount(entry.amount);
+    setAmountFromCommon(true);
     setCategoryId(entry.categoryId);
     setSubcategoryId(entry.subcategoryId ?? '');
     setOccurredAtLocal(shanghaiNowLocal());
@@ -186,6 +188,7 @@ export function QuickEntry({
   function reset() {
     setType('expense');
     setAmount('');
+    setAmountFromCommon(false);
     setCategoryId('');
     setSubcategoryId('');
     setOccurredAtLocal(shanghaiNowLocal());
@@ -249,14 +252,14 @@ export function QuickEntry({
         <button type="button" className={type === 'expense' ? 'active' : ''} onClick={() => switchType('expense')}>支出</button>
         <button type="button" className={type === 'income' ? 'active' : ''} onClick={() => switchType('income')}>收入</button>
       </div>
-      <div className="money-field"><span>¥</span><input value={amount} onChange={(event) => setAmount(event.target.value)} inputMode="decimal" placeholder="0.00" aria-label="金额" /></div>
+      <div className="money-field"><span>¥</span><input value={amount} onChange={(event) => { setAmount(event.target.value); setAmountFromCommon(false); }} onClick={() => { if (amountFromCommon) { setAmount(''); setAmountFromCommon(false); } }} inputMode="decimal" placeholder="0.00" aria-label="金额" /></div>
       <div className="quick-category-layout">
         <div className="common-entry-workspace">
           <div className="category-section-title"><span>最近常用</span></div>
           <div className="common-entry-list">
             {commonEntries.map((entry, index) => (
               <button
-                key={`${entry.type}-${entry.categoryId}-${entry.subcategoryId ?? 'root'}-${entry.amountFen}-${index}`}
+                key={`${entry.type}-${entry.categoryId}-${entry.subcategoryId ?? 'root'}-${index}`}
                 type="button"
                 className={`common-entry-row ${entry.type}${entry.isPinned ? ' pinned' : ''}`}
                 onClick={() => {

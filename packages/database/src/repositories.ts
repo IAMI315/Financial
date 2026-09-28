@@ -786,7 +786,7 @@ export function listTransactions(
 }
 
 function commonTransactionSignature(input: CommonTransactionKey): string {
-  return `${input.type}:${input.amountFen}:${input.categoryId}:${input.subcategoryId ?? 0}`;
+  return `${input.type}:${input.categoryId}:${input.subcategoryId ?? 0}`;
 }
 
 export function listCommonTransactions(handle: DatabaseHandle, userId: number, limit = 6): CommonTransactionRecord[] {
@@ -794,11 +794,21 @@ export function listCommonTransactions(handle: DatabaseHandle, userId: number, l
   const recentRows = handle.sqlite
     .prepare(
       `with recent as (
-         select type, amount_fen, category_id, subcategory_id, occurred_at
+         select id, type, amount_fen, category_id, subcategory_id, occurred_at
          from transactions
          where user_id = ?
          order by occurred_at desc, id desc
          limit 200
+       ), ranked as (
+         select r.*,
+                count(*) over (
+                  partition by r.type, r.category_id, coalesce(r.subcategory_id, 0)
+                ) as usage_count,
+                row_number() over (
+                  partition by r.type, r.category_id, coalesce(r.subcategory_id, 0)
+                  order by r.occurred_at desc, r.id desc
+                ) as recent_rank
+         from recent r
        )
        select r.type,
               r.amount_fen,
@@ -806,14 +816,13 @@ export function listCommonTransactions(handle: DatabaseHandle, userId: number, l
               c.name as category_name,
               r.subcategory_id,
               sc.name as subcategory_name,
-              count(*) as usage_count,
-              max(r.occurred_at) as last_used_at
-       from recent r
+              r.usage_count,
+              r.occurred_at as last_used_at
+       from ranked r
        join categories c on c.id = r.category_id and c.user_id = ? and c.is_archived = 0
        left join categories sc on sc.id = r.subcategory_id and sc.user_id = ?
-       where r.subcategory_id is null or sc.is_archived = 0
-       group by r.type, r.amount_fen, r.category_id, c.name, r.subcategory_id, sc.name
-       order by usage_count desc, last_used_at desc`,
+       where r.recent_rank = 1 and (r.subcategory_id is null or sc.is_archived = 0)
+       order by r.usage_count desc, r.occurred_at desc`,
     )
     .all(userId, userId, userId) as Array<{
       type: TransactionType;
@@ -857,25 +866,30 @@ export function listCommonTransactions(handle: DatabaseHandle, userId: number, l
       subcategory_name: string | null;
       pinned_at: number;
     }>;
-  const pinned = pinnedRows.map((row) => {
+  const pinnedBySignature = new Map<string, CommonTransactionRecord>();
+  for (const row of pinnedRows) {
     const key: CommonTransactionKey = {
       type: row.type,
       amountFen: Number(row.amount_fen),
       categoryId: Number(row.category_id),
       subcategoryId: row.subcategory_id == null ? null : Number(row.subcategory_id),
     };
-    const matchingRecent = recentBySignature.get(commonTransactionSignature(key));
-    return {
+    const signature = commonTransactionSignature(key);
+    if (pinnedBySignature.has(signature)) continue;
+    const matchingRecent = recentBySignature.get(signature);
+    pinnedBySignature.set(signature, {
       ...key,
+      amountFen: matchingRecent?.amountFen ?? key.amountFen,
       subcategoryId: key.subcategoryId ?? null,
       categoryName: row.category_name,
       subcategoryName: row.subcategory_name,
       usageCount: matchingRecent?.usageCount ?? 0,
       lastUsedAt: matchingRecent?.lastUsedAt ?? Number(row.pinned_at),
       isPinned: true,
-    } satisfies CommonTransactionRecord;
-  });
-  const pinnedSignatures = new Set(pinned.map((item) => commonTransactionSignature(item)));
+    });
+  }
+  const pinned = [...pinnedBySignature.values()];
+  const pinnedSignatures = new Set(pinnedBySignature.keys());
   return [...pinned, ...recent.filter((item) => !pinnedSignatures.has(commonTransactionSignature(item)))].slice(0, safeLimit);
 }
 
@@ -893,16 +907,22 @@ export function setCommonTransactionPinned(
     if (!subcategory || subcategory.isArchived || subcategory.parentId !== category.id || subcategory.type !== input.type) return false;
   }
   const signature = commonTransactionSignature(input);
-  if (!pinned) {
-    handle.sqlite.prepare('delete from common_transaction_pins where user_id = ? and signature = ?').run(userId, signature);
-    return true;
-  }
+  const subcategoryKey = input.subcategoryId ?? 0;
+  handle.sqlite
+    .prepare(
+      `delete from common_transaction_pins
+       where user_id = ? and type = ? and category_id = ? and coalesce(subcategory_id, 0) = ?`,
+    )
+    .run(userId, input.type, input.categoryId, subcategoryKey);
+  if (!pinned) return true;
   handle.sqlite
     .prepare(
       `insert into common_transaction_pins
        (user_id, signature, type, amount_fen, category_id, subcategory_id, pinned_at)
        values (?, ?, ?, ?, ?, ?, ?)
-       on conflict(user_id, signature) do update set pinned_at = excluded.pinned_at`,
+       on conflict(user_id, signature) do update set
+         amount_fen = excluded.amount_fen,
+         pinned_at = excluded.pinned_at`,
     )
     .run(userId, signature, input.type, input.amountFen, input.categoryId, input.subcategoryId ?? null, Date.now());
   return true;
