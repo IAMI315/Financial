@@ -29,39 +29,51 @@ function balanceSeries(stats: MonthlyStats | null): number[] {
 export function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
   const [categories, setCategories] = useState<Category[]>([]);
   const [stats, setStats] = useState<MonthlyStats | null>(null);
+  const [selectedMonth, setSelectedMonth] = useState(currentShanghaiMonth());
   const [recent, setRecent] = useState<Transaction[]>([]);
   const [commonEntries, setCommonEntries] = useState<CommonTransaction[]>([]);
   const [dailyMustEntries, setDailyMustEntries] = useState<DailyMustItem[]>([]);
 
-  const loadDashboard = useCallback(async () => {
+  const loadHomeActivity = useCallback(async () => {
     const date = shanghaiNowLocal().slice(0, 10);
-    const [statResult, transactionResult, commonResult, dailyMustResult] = await Promise.all([
-      api<MonthlyStats>(`/api/stats/monthly?month=${currentShanghaiMonth()}`),
+    const [transactionResult, commonResult, dailyMustResult] = await Promise.all([
       api<{ items: Transaction[] }>('/api/transactions?page=1&pageSize=6'),
       api<{ items: CommonTransaction[] }>('/api/transactions/common?limit=8'),
       api<{ items: DailyMustItem[] }>(`/api/daily-must?date=${date}`),
     ]);
-    setStats(statResult);
     setRecent(transactionResult.items);
     setCommonEntries(commonResult.items);
     setDailyMustEntries(dailyMustResult.items);
   }, []);
 
+  const loadMonthlyStats = useCallback(async (month: string) => {
+    setStats(await api<MonthlyStats>(`/api/stats/monthly?month=${month}`));
+  }, []);
+
+  const refreshAfterSave = useCallback(async () => {
+    await loadHomeActivity();
+    if (selectedMonth === currentShanghaiMonth()) await loadMonthlyStats(selectedMonth);
+  }, [loadHomeActivity, loadMonthlyStats, selectedMonth]);
+
   useEffect(() => {
     void api<{ categories: Category[] }>('/api/categories?includeArchived=false').then((result) => setCategories(result.categories));
-    void loadDashboard();
-  }, [loadDashboard]);
+    void loadHomeActivity();
+  }, [loadHomeActivity]);
+
+  useEffect(() => {
+    void loadMonthlyStats(selectedMonth);
+  }, [loadMonthlyStats, selectedMonth]);
 
   return (
     <div className="page-grid home-grid">
-      <QuickEntry categories={categories} commonEntries={commonEntries} dailyMustEntries={dailyMustEntries} onCommonEntriesChanged={setCommonEntries} onDailyMustChanged={() => void loadDashboard()} onSaved={() => void loadDashboard()} onOpenCategories={() => onNavigate('categories')} />
+      <QuickEntry categories={categories} commonEntries={commonEntries} dailyMustEntries={dailyMustEntries} onCommonEntriesChanged={setCommonEntries} onDailyMustChanged={() => void loadHomeActivity()} onSaved={() => void refreshAfterSave()} onOpenCategories={() => onNavigate('categories')} />
       <div className="dashboard-column">
         <section className="summary-grid home-summary-grid">
           <article className="metric home-metric income"><span className="home-metric-icon">↓</span><span className="home-metric-label">本月收入</span><strong>{money(stats?.incomeFen ?? 0)}</strong><MetricComparison value={stats?.comparison.incomePercent} /><MetricMiniBars values={stats?.dailyIncome.map((item) => item.amountFen) ?? []} /></article>
           <article className="metric home-metric expense"><span className="home-metric-icon">↑</span><span className="home-metric-label">本月支出</span><strong>{money(stats?.expenseFen ?? 0)}</strong><MetricComparison value={stats?.comparison.expensePercent} /><MetricMiniBars values={stats?.dailyExpense.map((item) => item.amountFen) ?? []} /></article>
           <article className="metric home-metric balance"><span className="home-metric-icon">▣</span><span className="home-metric-label">本月结余</span><strong>{money(stats?.balanceFen ?? 0)}</strong><MetricComparison value={stats?.comparison.balancePercent} /><MetricMiniBars values={balanceSeries(stats)} /></article>
         </section>
-        <IncomeExpenseTrend stats={stats} title="本月收支趋势" periodLabel={`${currentShanghaiMonth().replace('-', '年')}月`} />
+        <IncomeExpenseTrend stats={stats} title="本月收支趋势" month={selectedMonth} onMonthChange={setSelectedMonth} />
         <section className="panel home-recent-panel">
           <div className="panel-title"><div><span className="eyebrow">流水</span><h2>最近交易</h2></div><button type="button" className="dashboard-link" onClick={() => onNavigate('transactions')}>查看更多 <span aria-hidden="true">›</span></button></div>
           {recent.length === 0 ? <p className="empty">还没有交易，先记第一笔吧。</p> : (
