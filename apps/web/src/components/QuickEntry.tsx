@@ -295,7 +295,7 @@ export function QuickEntry({
                 <div className="subcategory-panel-title">二级分类 <span>可选</span></div>
                 <div className="subcategory-grid">
                   {children.map((item) => (
-                    <button key={item.id} type="button" className={subcategoryId === item.id ? 'subcategory-chip selected' : 'subcategory-chip'} onClick={() => setSubcategoryId(subcategoryId === item.id ? '' : item.id)}>{item.name}</button>
+                    <button key={item.id} type="button" className={subcategoryId === item.id ? 'subcategory-chip selected' : 'subcategory-chip'} onClick={() => setSubcategoryId(subcategoryId === item.id ? '' : item.id)}><CategoryIcon categoryName={item.name} type={item.type} size="sm" /><span>{item.name}</span></button>
                   ))}
                 </div>
               </div>
