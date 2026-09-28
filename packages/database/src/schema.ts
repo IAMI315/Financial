@@ -161,6 +161,38 @@ export const commonTransactionPins = sqliteTable(
   ],
 );
 
+export const dailyEntryTemplates = sqliteTable(
+  'daily_entry_templates',
+  {
+    id: integer('id').primaryKey({ autoIncrement: true }),
+    userId: integer('user_id')
+      .notNull()
+      .references(() => users.id, { onDelete: 'cascade' }),
+    name: text('name').notNull(),
+    type: text('type', { enum: ['income', 'expense'] }).notNull(),
+    categoryId: integer('category_id')
+      .notNull()
+      .references(() => categories.id, { onDelete: 'cascade' }),
+    subcategoryId: integer('subcategory_id').references(() => categories.id, { onDelete: 'cascade' }),
+    amountMode: text('amount_mode', { enum: ['fixed', 'latest'] }).notNull().default('latest'),
+    fixedAmountFen: integer('fixed_amount_fen'),
+    frequency: text('frequency', { enum: ['daily'] }).notNull().default('daily'),
+    sortOrder: integer('sort_order').notNull().default(0),
+    isEnabled: integer('is_enabled', { mode: 'boolean' }).notNull().default(true),
+    createdAt: integer('created_at', { mode: 'timestamp_ms' }).notNull().default(nowMs),
+    updatedAt: integer('updated_at', { mode: 'timestamp_ms' }).notNull().default(nowMs),
+  },
+  (table) => [
+    index('daily_entry_templates_user_sort_idx').on(table.userId, table.isEnabled, table.sortOrder),
+    index('daily_entry_templates_category_idx').on(table.categoryId),
+    index('daily_entry_templates_subcategory_idx').on(table.subcategoryId),
+    check('daily_entry_templates_type_check', sql`${table.type} in ('income', 'expense')`),
+    check('daily_entry_templates_amount_mode_check', sql`${table.amountMode} in ('fixed', 'latest')`),
+    check('daily_entry_templates_frequency_check', sql`${table.frequency} = 'daily'`),
+    check('daily_entry_templates_fixed_amount_check', sql`${table.fixedAmountFen} is null or ${table.fixedAmountFen} > 0`),
+  ],
+);
+
 export const systemSettings = sqliteTable('system_settings', {
   key: text('key').primaryKey(),
   value: text('value').notNull(),

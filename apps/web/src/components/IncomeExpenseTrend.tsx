@@ -4,9 +4,11 @@ import type { MonthlyStats } from '../types';
 export function IncomeExpenseTrend({
   stats,
   title = '每日收支',
+  periodLabel,
 }: {
   stats: MonthlyStats | null;
   title?: string;
+  periodLabel?: string;
 }) {
   const byDate = new Map<string, { date: string; incomeFen: number; expenseFen: number }>();
   for (const item of stats?.dailyIncome ?? []) {
@@ -25,10 +27,7 @@ export function IncomeExpenseTrend({
     <section className="panel trend-panel">
       <div className="panel-title trend-panel-title">
         <div><span className="eyebrow">趋势</span><h2>{title}</h2></div>
-        <div className="trend-legend" aria-label="图例">
-          <span><i className="trend-legend-dot income" />收入</span>
-          <span><i className="trend-legend-dot expense" />支出</span>
-        </div>
+        <div className="trend-panel-meta">{periodLabel && <span>{periodLabel}</span>}<div className="trend-legend" aria-label="图例"><span><i className="trend-legend-dot income" />收入</span><span><i className="trend-legend-dot expense" />支出</span></div></div>
       </div>
       {points.length > 0 ? (
         <div className="daily-bars trend-bars">

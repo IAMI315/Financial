@@ -59,6 +59,44 @@ export type CommonTransactionRecord = {
   isPinned: boolean;
 };
 
+export type DailyEntryAmountMode = 'fixed' | 'latest';
+
+export type DailyEntryTemplateRecord = {
+  id: number;
+  userId: number;
+  name: string;
+  type: TransactionType;
+  categoryId: number;
+  categoryName: string;
+  subcategoryId: number | null;
+  subcategoryName: string | null;
+  amountMode: DailyEntryAmountMode;
+  fixedAmountFen: number | null;
+  frequency: 'daily';
+  sortOrder: number;
+  isEnabled: boolean;
+  createdAt: number;
+  updatedAt: number;
+};
+
+export type DailyEntryTodayRecord = DailyEntryTemplateRecord & {
+  suggestedAmountFen: number;
+  completedAmountFen: number;
+  completedCount: number;
+  isCompleted: boolean;
+};
+
+export type DailyEntryTemplateInput = {
+  name: string;
+  type: TransactionType;
+  categoryId: number;
+  subcategoryId?: number | null | undefined;
+  amountMode: DailyEntryAmountMode;
+  fixedAmountFen?: number | null | undefined;
+  sortOrder?: number | undefined;
+  isEnabled?: boolean | undefined;
+};
+
 export type TransactionFilters = {
   from?: number | undefined;
   to?: number | undefined;
@@ -783,6 +821,187 @@ export function listTransactions(
       monthly: [...monthlyMap.entries()].map(([period, balanceFen]) => ({ period, balanceFen })),
     },
   };
+}
+
+function validateDailyEntryCategory(
+  handle: DatabaseHandle,
+  userId: number,
+  type: TransactionType,
+  categoryId: number,
+  subcategoryId?: number | null,
+): boolean {
+  const category = getCategory(handle, userId, categoryId);
+  if (!category || category.isArchived || category.parentId !== null || category.type !== type) return false;
+  if (subcategoryId != null) {
+    const subcategory = getCategory(handle, userId, subcategoryId);
+    if (!subcategory || subcategory.isArchived || subcategory.parentId !== category.id || subcategory.type !== type) return false;
+  }
+  return true;
+}
+
+function mapDailyEntryTemplate(row: Record<string, unknown>): DailyEntryTemplateRecord {
+  return {
+    id: Number(row.id),
+    userId: Number(row.user_id),
+    name: String(row.name),
+    type: row.type as TransactionType,
+    categoryId: Number(row.category_id),
+    categoryName: String(row.category_name),
+    subcategoryId: row.subcategory_id == null ? null : Number(row.subcategory_id),
+    subcategoryName: row.subcategory_name == null ? null : String(row.subcategory_name),
+    amountMode: row.amount_mode as DailyEntryAmountMode,
+    fixedAmountFen: row.fixed_amount_fen == null ? null : Number(row.fixed_amount_fen),
+    frequency: 'daily',
+    sortOrder: Number(row.sort_order),
+    isEnabled: Boolean(row.is_enabled),
+    createdAt: Number(row.created_at),
+    updatedAt: Number(row.updated_at),
+  };
+}
+
+export function listDailyEntryTemplates(handle: DatabaseHandle, userId: number): DailyEntryTemplateRecord[] {
+  const rows = handle.sqlite
+    .prepare(
+      `select d.*, c.name as category_name, sc.name as subcategory_name
+       from daily_entry_templates d
+       join categories c on c.id = d.category_id and c.user_id = d.user_id
+       left join categories sc on sc.id = d.subcategory_id and sc.user_id = d.user_id
+       where d.user_id = ?
+       order by d.sort_order, d.id`,
+    )
+    .all(userId) as Array<Record<string, unknown>>;
+  return rows.map(mapDailyEntryTemplate);
+}
+
+export function listDailyEntryTemplatesForDate(
+  handle: DatabaseHandle,
+  userId: number,
+  from: number,
+  to: number,
+): DailyEntryTodayRecord[] {
+  const rows = handle.sqlite
+    .prepare(
+      `select d.*, c.name as category_name, sc.name as subcategory_name,
+              coalesce((
+                select t.amount_fen
+                from transactions t
+                where t.user_id = d.user_id
+                  and t.type = d.type
+                  and t.category_id = d.category_id
+                  and coalesce(t.subcategory_id, 0) = coalesce(d.subcategory_id, 0)
+                order by t.occurred_at desc, t.id desc
+                limit 1
+              ), 0) as latest_amount_fen,
+              coalesce((
+                select sum(t.amount_fen)
+                from transactions t
+                where t.user_id = d.user_id
+                  and t.type = d.type
+                  and t.category_id = d.category_id
+                  and coalesce(t.subcategory_id, 0) = coalesce(d.subcategory_id, 0)
+                  and t.occurred_at >= ? and t.occurred_at < ?
+              ), 0) as completed_amount_fen,
+              (
+                select count(*)
+                from transactions t
+                where t.user_id = d.user_id
+                  and t.type = d.type
+                  and t.category_id = d.category_id
+                  and coalesce(t.subcategory_id, 0) = coalesce(d.subcategory_id, 0)
+                  and t.occurred_at >= ? and t.occurred_at < ?
+              ) as completed_count
+       from daily_entry_templates d
+       join categories c on c.id = d.category_id and c.user_id = d.user_id and c.is_archived = 0
+       left join categories sc on sc.id = d.subcategory_id and sc.user_id = d.user_id
+       where d.user_id = ? and d.is_enabled = 1 and (d.subcategory_id is null or sc.is_archived = 0)
+       order by d.sort_order, d.id`,
+    )
+    .all(from, to, from, to, userId) as Array<Record<string, unknown>>;
+  return rows.map((row) => {
+    const template = mapDailyEntryTemplate(row);
+    const latestAmountFen = Number(row.latest_amount_fen ?? 0);
+    const completedAmountFen = Number(row.completed_amount_fen ?? 0);
+    const completedCount = Number(row.completed_count ?? 0);
+    return {
+      ...template,
+      suggestedAmountFen: template.amountMode === 'fixed' ? (template.fixedAmountFen ?? 0) : latestAmountFen,
+      completedAmountFen,
+      completedCount,
+      isCompleted: completedCount > 0,
+    };
+  });
+}
+
+export function createDailyEntryTemplate(
+  handle: DatabaseHandle,
+  userId: number,
+  input: DailyEntryTemplateInput,
+): DailyEntryTemplateRecord | null {
+  if (!validateDailyEntryCategory(handle, userId, input.type, input.categoryId, input.subcategoryId)) return null;
+  if (input.amountMode === 'fixed' && (!input.fixedAmountFen || input.fixedAmountFen <= 0)) return null;
+  const now = Date.now();
+  const sortOrder = input.sortOrder ?? Number((handle.sqlite.prepare('select coalesce(max(sort_order), -1) + 1 as next from daily_entry_templates where user_id = ?').get(userId) as { next: number }).next);
+  const info = handle.sqlite
+    .prepare(
+      `insert into daily_entry_templates
+       (user_id, name, type, category_id, subcategory_id, amount_mode, fixed_amount_fen, frequency, sort_order, is_enabled, created_at, updated_at)
+       values (?, ?, ?, ?, ?, ?, ?, 'daily', ?, ?, ?, ?)`,
+    )
+    .run(userId, input.name, input.type, input.categoryId, input.subcategoryId ?? null, input.amountMode, input.fixedAmountFen ?? null, sortOrder, input.isEnabled === false ? 0 : 1, now, now);
+  return listDailyEntryTemplates(handle, userId).find((item) => item.id === Number(info.lastInsertRowid)) ?? null;
+}
+
+export function updateDailyEntryTemplate(
+  handle: DatabaseHandle,
+  userId: number,
+  id: number,
+  input: DailyEntryTemplateInput,
+): DailyEntryTemplateRecord | null {
+  if (!validateDailyEntryCategory(handle, userId, input.type, input.categoryId, input.subcategoryId)) return null;
+  if (input.amountMode === 'fixed' && (!input.fixedAmountFen || input.fixedAmountFen <= 0)) return null;
+  const info = handle.sqlite
+    .prepare(
+      `update daily_entry_templates
+       set name = ?, type = ?, category_id = ?, subcategory_id = ?, amount_mode = ?, fixed_amount_fen = ?, sort_order = ?, is_enabled = ?, updated_at = ?
+       where id = ? and user_id = ?`,
+    )
+    .run(input.name, input.type, input.categoryId, input.subcategoryId ?? null, input.amountMode, input.fixedAmountFen ?? null, input.sortOrder ?? 0, input.isEnabled === false ? 0 : 1, Date.now(), id, userId);
+  if (info.changes === 0) return null;
+  return listDailyEntryTemplates(handle, userId).find((item) => item.id === id) ?? null;
+}
+
+export function deleteDailyEntryTemplate(handle: DatabaseHandle, userId: number, id: number): boolean {
+  return handle.sqlite.prepare('delete from daily_entry_templates where id = ? and user_id = ?').run(id, userId).changes > 0;
+}
+
+export function createDefaultDailyEntryTemplates(handle: DatabaseHandle, userId: number): number {
+  const categories = listCategories(handle, userId, false);
+  const dining = categories.find((item) => item.type === 'expense' && item.parentId === null && item.name === '餐饮');
+  if (!dining) return 0;
+  const defaults = [
+    { name: '早餐', amountFen: 500 },
+    { name: '中餐', amountFen: 1250 },
+    { name: '晚餐', amountFen: 1500 },
+  ] as const;
+  let inserted = 0;
+  for (const [index, item] of defaults.entries()) {
+    const child = categories.find((category) => category.parentId === dining.id && category.name === item.name && !category.isArchived);
+    if (!child) continue;
+    const exists = handle.sqlite
+      .prepare('select id from daily_entry_templates where user_id = ? and type = ? and category_id = ? and subcategory_id = ? limit 1')
+      .get(userId, 'expense', dining.id, child.id);
+    if (exists) continue;
+    if (createDailyEntryTemplate(handle, userId, {
+      name: item.name,
+      type: 'expense',
+      categoryId: dining.id,
+      subcategoryId: child.id,
+      amountMode: 'fixed',
+      fixedAmountFen: item.amountFen,
+      sortOrder: index,
+    })) inserted += 1;
+  }
+  return inserted;
 }
 
 function commonTransactionSignature(input: CommonTransactionKey): string {

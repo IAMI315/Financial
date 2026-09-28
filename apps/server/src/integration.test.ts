@@ -112,6 +112,42 @@ describe('V1 API integration', () => {
     expect(duplicate.json().error).toBe('POTENTIAL_DUPLICATE');
   });
 
+  it('seeds daily must meals and derives completion from real transactions', async () => {
+    const user = await register('DailyMustUser', null);
+    const categoriesResponse = await app.inject({ method: 'GET', url: '/api/categories', headers: { cookie: user.cookie } });
+    const categories = categoriesResponse.json().categories as Array<{ id: number; type: string; name: string; parentId: number | null }>;
+    const dining = categories.find((item) => item.type === 'expense' && item.name === '餐饮' && item.parentId === null)!;
+    const breakfast = categories.find((item) => item.name === '早餐' && item.parentId === dining.id)!;
+
+    const initial = await app.inject({ method: 'GET', url: '/api/daily-must?date=2026-01-05', headers: { cookie: user.cookie } });
+    expect(initial.statusCode).toBe(200);
+    expect(initial.json().items.map((item: { name: string }) => item.name)).toEqual(['早餐', '中餐', '晚餐']);
+    expect(initial.json().items.map((item: { suggestedAmount: string }) => item.suggestedAmount)).toEqual(['5.00', '12.50', '15.00']);
+    expect(initial.json().items.every((item: { isCompleted: boolean }) => !item.isCompleted)).toBe(true);
+
+    const transaction = await app.inject({
+      method: 'POST',
+      url: '/api/transactions',
+      headers: { cookie: user.cookie },
+      payload: { type: 'expense', amount: '6.80', categoryId: dining.id, subcategoryId: breakfast.id, occurredAtLocal: '2026-01-05T08:10:00' },
+    });
+    expect(transaction.statusCode).toBe(201);
+
+    const completed = await app.inject({ method: 'GET', url: '/api/daily-must?date=2026-01-05', headers: { cookie: user.cookie } });
+    const breakfastItem = completed.json().items.find((item: { name: string }) => item.name === '早餐');
+    expect(breakfastItem).toMatchObject({ isCompleted: true, completedAmount: '6.80', completedCount: 1, suggestedAmount: '5.00' });
+
+    const updated = await app.inject({
+      method: 'PUT',
+      url: `/api/daily-must/${breakfastItem.id}`,
+      headers: { cookie: user.cookie },
+      payload: { name: '早餐', type: 'expense', categoryId: dining.id, subcategoryId: breakfast.id, amountMode: 'latest', fixedAmount: null, sortOrder: 0, isEnabled: true },
+    });
+    expect(updated.statusCode).toBe(200);
+    const latestMode = await app.inject({ method: 'GET', url: '/api/daily-must?date=2026-01-06', headers: { cookie: user.cookie } });
+    expect(latestMode.json().items.find((item: { name: string }) => item.name === '早餐')).toMatchObject({ suggestedAmount: '6.80', isCompleted: false });
+  });
+
   it('filters same-name root categories across income and expense when type is all', async () => {
     const user = await register('SharedCategoryFilter', null);
     const categoriesResponse = await app.inject({ method: 'GET', url: '/api/categories', headers: { cookie: user.cookie } });

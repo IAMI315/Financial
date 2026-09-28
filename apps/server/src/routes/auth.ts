@@ -3,6 +3,7 @@ import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
 import {
   createDefaultCategories,
+  createDefaultDailyEntryTemplates,
   createUser,
   deleteUser,
   getSetting,
@@ -76,6 +77,7 @@ export function registerAuthRoutes(app: FastifyInstance, state: AppState): void 
             passwordHash,
           });
           createDefaultCategories(state.database.current, created.id);
+          createDefaultDailyEntryTemplates(state.database.current, created.id);
           return created;
         })();
         const session = createLoginSession(state, user.id);

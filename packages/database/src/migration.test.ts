@@ -47,6 +47,7 @@ describe('database migrations', () => {
         '__drizzle_migrations',
         'categories',
         'common_transaction_pins',
+        'daily_entry_templates',
         'import_batches',
         'sessions',
         'system_settings',
@@ -59,7 +60,7 @@ describe('database migrations', () => {
     const migrationCount = rerun.sqlite
       .prepare('select count(*) as count from __drizzle_migrations')
       .get() as { count: number };
-    expect(migrationCount.count).toBe(3);
+    expect(migrationCount.count).toBe(4);
     const transactionIndexes = rerun.sqlite
       .prepare("select name from sqlite_master where type = 'index' and name like 'transactions_%' order by name")
       .all() as Array<{ name: string }>;

@@ -9,6 +9,7 @@ import {
   DEFAULT_CATEGORY_MIGRATIONS,
   DEFAULT_SUBCATEGORY_MIGRATIONS,
   createDefaultCategories,
+  createDefaultDailyEntryTemplates,
   createUser,
   getSetting,
   listCategories,
@@ -25,6 +26,7 @@ import { registerAdminRoutes } from './routes/admin.js';
 import { registerAuthRoutes } from './routes/auth.js';
 import { registerBackupRoutes } from './routes/backups.js';
 import { registerCategoryRoutes } from './routes/categories.js';
+import { registerDailyMustRoutes } from './routes/daily-must.js';
 import { registerImportRoutes } from './routes/imports.js';
 import { registerStatsRoutes } from './routes/stats.js';
 import { registerTransactionRoutes } from './routes/transactions.js';
@@ -96,6 +98,15 @@ async function bootstrapSystem(state: AppState): Promise<void> {
     })();
   }
 
+  if (getSetting(state.database.current, 'default_daily_must_seed_v1') == null) {
+    state.database.current.sqlite.transaction(() => {
+      for (const user of listUsers(state.database.current)) {
+        createDefaultDailyEntryTemplates(state.database.current, user.id);
+      }
+      setSetting(state.database.current, 'default_daily_must_seed_v1', 'done');
+    })();
+  }
+
   if (getSetting(state.database.current, 'registration_open') == null) {
     setSetting(
       state.database.current,
@@ -146,6 +157,7 @@ export async function buildApp(
 
   registerAuthRoutes(app, state);
   registerCategoryRoutes(app, state);
+  registerDailyMustRoutes(app, state);
   registerTransactionRoutes(app, state);
   registerStatsRoutes(app, state);
   registerImportRoutes(app, state);

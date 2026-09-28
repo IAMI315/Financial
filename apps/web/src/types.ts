@@ -56,6 +56,29 @@ export type CommonTransaction = {
   isPinned: boolean;
 };
 
+export type DailyMustItem = {
+  id: number;
+  userId: number;
+  name: string;
+  type: TransactionType;
+  categoryId: number;
+  categoryName: string;
+  subcategoryId: number | null;
+  subcategoryName: string | null;
+  amountMode: 'fixed' | 'latest';
+  fixedAmountFen: number | null;
+  fixedAmount: string | null;
+  frequency: 'daily';
+  sortOrder: number;
+  isEnabled: boolean;
+  suggestedAmountFen: number;
+  suggestedAmount: string;
+  completedAmountFen: number;
+  completedAmount: string;
+  completedCount: number;
+  isCompleted: boolean;
+};
+
 export type MonthlyStats = {
   month: string;
   incomeFen: number;

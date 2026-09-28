@@ -1,17 +1,22 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as ReactMouseEvent, type PointerEvent as ReactPointerEvent } from 'react';
 import { ApiError, api, shanghaiNowLocal } from '../api';
-import type { Category, CommonTransaction, TransactionType } from '../types';
+import { DailyMustEntry } from './DailyMustEntry';
+import type { Category, CommonTransaction, DailyMustItem, TransactionType } from '../types';
 
 export function QuickEntry({
   categories,
   commonEntries,
+  dailyMustEntries,
   onCommonEntriesChanged,
+  onDailyMustChanged,
   onSaved,
   onCategoryCreated,
 }: {
   categories: Category[];
   commonEntries: CommonTransaction[];
+  dailyMustEntries: DailyMustItem[];
   onCommonEntriesChanged: (items: CommonTransaction[]) => void;
+  onDailyMustChanged: () => void;
   onSaved: () => void;
   onCategoryCreated: (category: Category) => void;
 }) {
@@ -172,6 +177,19 @@ export function QuickEntry({
     }
   }
 
+  function applyDailyMustEntry(entry: DailyMustItem) {
+    setType(entry.type);
+    setAmount(entry.suggestedAmountFen > 0 ? entry.suggestedAmount : '');
+    setAmountFromCommon(entry.suggestedAmountFen > 0);
+    setCategoryId(entry.categoryId);
+    setSubcategoryId(entry.subcategoryId ?? '');
+    setOccurredAtLocal(shanghaiNowLocal());
+    setAddingCategory(false);
+    setNewCategoryName('');
+    setDuplicatePending(false);
+    setError('');
+  }
+
   function applyCommonEntry(entry: CommonTransaction) {
     setType(entry.type);
     setAmount(entry.amount);
@@ -247,7 +265,8 @@ export function QuickEntry({
 
   return (
     <section className="panel quick-entry">
-      <div className="panel-title"><div><span className="eyebrow">快速记账</span><h2>记一笔</h2></div><span className="online-dot">联网</span></div>
+      <div className="panel-title quick-entry-panel-title"><div><h2>快速记账</h2><span>随手记录每一笔，让生活更清晰</span></div><span className="online-dot">联网</span></div>
+      <DailyMustEntry items={dailyMustEntries} categories={categories} onSelect={applyDailyMustEntry} onRefresh={onDailyMustChanged} />
       <div className="segmented compact">
         <button type="button" className={type === 'expense' ? 'active' : ''} onClick={() => switchType('expense')}>支出</button>
         <button type="button" className={type === 'income' ? 'active' : ''} onClick={() => switchType('income')}>收入</button>
@@ -311,13 +330,13 @@ export function QuickEntry({
           {addingCategory && <div className="quick-category-form"><input autoFocus value={newCategoryName} maxLength={40} placeholder={`新增${type === 'expense' ? '支出' : '收入'}一级分类`} onChange={(event) => setNewCategoryName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void createRootCategory(); if (event.key === 'Escape') { setAddingCategory(false); setNewCategoryName(''); } }} /><button type="button" className="primary" disabled={creatingCategory} onClick={() => void createRootCategory()}>{creatingCategory ? '添加中…' : '添加'}</button><button type="button" className="secondary" disabled={creatingCategory} onClick={() => { setAddingCategory(false); setNewCategoryName(''); }}>取消</button></div>}
         </div>
       </div>
-      <label>交易时间<input type="datetime-local" step="1" value={occurredAtLocal} onChange={(event) => setOccurredAtLocal(event.target.value)} /></label>
+      <div className="quick-entry-footer-fields"><label>交易时间<input type="datetime-local" step="1" value={occurredAtLocal} onChange={(event) => setOccurredAtLocal(event.target.value)} /></label><label>添加备注（可选）<input maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} placeholder="记录一下这笔账…" /></label></div>
       {commonMenu && (
         <div className="common-entry-menu" style={{ left: commonMenu.x, top: commonMenu.y }} onClick={(event) => event.stopPropagation()}>
           <button type="button" onClick={() => void toggleCommonPin(commonMenu.entry)}>{commonMenu.entry.isPinned ? '取消置顶' : '置顶'}</button>
         </div>
       )}
-      <details><summary>添加备注</summary><textarea rows={2} maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} placeholder="可选" /></details>
+
       {error && <div className="notice error">{error}</div>}
       <button className="primary wide" type="button" onClick={() => void save(duplicatePending)}>{duplicatePending ? '确认仍然保存' : '保存'}</button>
       {saved && <button type="button" className="success-action" onClick={() => setSaved(false)}>✓ 记账成功 · 继续记一笔</button>}
