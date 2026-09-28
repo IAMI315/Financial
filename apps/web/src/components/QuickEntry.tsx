@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent 
 import { ApiError, api, shanghaiNowLocal } from '../api';
 import { DailyMustEntry } from './DailyMustEntry';
 import { AmountCalculator } from './AmountCalculator';
+import { CategoryIcon } from './CategoryIcon';
 import type { Category, CommonTransaction, DailyMustItem, TransactionType } from '../types';
 
 export function QuickEntry({
@@ -11,7 +12,7 @@ export function QuickEntry({
   onCommonEntriesChanged,
   onDailyMustChanged,
   onSaved,
-  onCategoryCreated,
+  onOpenCategories,
 }: {
   categories: Category[];
   commonEntries: CommonTransaction[];
@@ -19,12 +20,13 @@ export function QuickEntry({
   onCommonEntriesChanged: (items: CommonTransaction[]) => void;
   onDailyMustChanged: () => void;
   onSaved: () => void;
-  onCategoryCreated: (category: Category) => void;
+  onOpenCategories: () => void;
 }) {
   const [type, setType] = useState<TransactionType>('expense');
   const [amount, setAmount] = useState('');
   const [amountFromCommon, setAmountFromCommon] = useState(false);
   const [showCalculator, setShowCalculator] = useState(false);
+  const [showAllCommon, setShowAllCommon] = useState(false);
   const [categoryId, setCategoryId] = useState<number | ''>('');
   const [subcategoryId, setSubcategoryId] = useState<number | ''>('');
   const [occurredAtLocal, setOccurredAtLocal] = useState(shanghaiNowLocal());
@@ -32,9 +34,6 @@ export function QuickEntry({
   const [error, setError] = useState('');
   const [duplicatePending, setDuplicatePending] = useState(false);
   const [saved, setSaved] = useState(false);
-  const [addingCategory, setAddingCategory] = useState(false);
-  const [newCategoryName, setNewCategoryName] = useState('');
-  const [creatingCategory, setCreatingCategory] = useState(false);
   const [subcategoryPanelTop, setSubcategoryPanelTop] = useState<number | null>(null);
   const categoryGridRef = useRef<HTMLDivElement>(null);
   const [commonMenu, setCommonMenu] = useState<{ entry: CommonTransaction; x: number; y: number } | null>(null);
@@ -108,8 +107,6 @@ export function QuickEntry({
     setType(nextType);
     setCategoryId(matching?.id ?? '');
     setSubcategoryId('');
-    setAddingCategory(false);
-    setNewCategoryName('');
   }
 
   function selectRootCategory(category: Category) {
@@ -120,7 +117,6 @@ export function QuickEntry({
     }
     setCategoryId(category.id);
     setSubcategoryId('');
-    setAddingCategory(false);
     setError('');
   }
 
@@ -186,8 +182,6 @@ export function QuickEntry({
     setCategoryId(entry.categoryId);
     setSubcategoryId(entry.subcategoryId ?? '');
     setOccurredAtLocal(shanghaiNowLocal());
-    setAddingCategory(false);
-    setNewCategoryName('');
     setDuplicatePending(false);
     setError('');
   }
@@ -199,8 +193,6 @@ export function QuickEntry({
     setCategoryId(entry.categoryId);
     setSubcategoryId(entry.subcategoryId ?? '');
     setOccurredAtLocal(shanghaiNowLocal());
-    setAddingCategory(false);
-    setNewCategoryName('');
     setDuplicatePending(false);
     setError('');
   }
@@ -214,25 +206,6 @@ export function QuickEntry({
     setOccurredAtLocal(shanghaiNowLocal());
     setNote('');
     setDuplicatePending(false);
-  }
-
-  async function createRootCategory() {
-    const name = newCategoryName.trim();
-    if (!name) return setError('请输入一级分类名称');
-    setCreatingCategory(true);
-    setError('');
-    try {
-      const result = await api<{ category: Category }>('/api/categories', { method: 'POST', body: { type, name, parentId: null, sortOrder: roots.reduce((highest, category) => Math.max(highest, category.sortOrder), -1) + 1 } });
-      onCategoryCreated(result.category);
-      setCategoryId(result.category.id);
-      setSubcategoryId('');
-      setNewCategoryName('');
-      setAddingCategory(false);
-    } catch (cause) {
-      setError(cause instanceof Error ? cause.message : '分类创建失败');
-    } finally {
-      setCreatingCategory(false);
-    }
   }
 
   async function save(confirmDuplicate = false) {
@@ -276,9 +249,9 @@ export function QuickEntry({
       <div className="money-row"><div className="money-field"><span>¥</span><input value={amount} onChange={(event) => { setAmount(event.target.value); setAmountFromCommon(false); }} onClick={() => { if (amountFromCommon) { setAmount(''); setAmountFromCommon(false); } }} inputMode="decimal" placeholder="0.00" aria-label="金额" /></div><div className="calculator-anchor"><button type="button" className="calculator-trigger" onClick={() => setShowCalculator((value) => !value)} aria-expanded={showCalculator}><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="4" width="20" height="24" rx="4"/><rect x="10" y="8" width="12" height="5" rx="1"/><path d="M10 18h2M16 18h2M22 18h.01M10 23h2M16 23h2M22 23h.01"/></svg><span>计算器</span></button>{showCalculator && <AmountCalculator initialValue={amount} onClose={() => setShowCalculator(false)} onConfirm={(value) => { setAmount(value); setAmountFromCommon(false); }} />}</div></div>
       <div className="quick-category-layout">
         <div className="common-entry-workspace">
-          <div className="category-section-title"><span>最近常用</span></div>
+          <div className="category-section-title section-heading-row"><span>最近常用</span><button type="button" onClick={() => setShowAllCommon((value) => !value)}>{showAllCommon ? '收起' : '更多'} <span aria-hidden="true">›</span></button></div>
           <div className="common-entry-list">
-            {commonEntries.map((entry, index) => (
+            {commonEntries.slice(0, showAllCommon ? 8 : 5).map((entry, index) => (
               <button
                 key={`${entry.type}-${entry.categoryId}-${entry.subcategoryId ?? 'root'}-${index}`}
                 type="button"
@@ -297,27 +270,26 @@ export function QuickEntry({
                 onPointerLeave={clearLongPress}
                 title={`${entry.isPinned ? '已置顶 · ' : ''}点击带入；右键或长按管理置顶`}
               >
-                <span className={`common-entry-type ${entry.type}`}>{entry.type === 'income' ? '收' : '支'}</span>
+                <CategoryIcon categoryName={entry.categoryName} type={entry.type} size="sm" />
                 <span className="common-entry-name">{entry.categoryName}{entry.subcategoryName ? `-${entry.subcategoryName}` : ''}</span>
-                <strong className="common-entry-amount">{entry.amount}</strong>
+                <span className="common-entry-tail">{entry.isPinned && <i className="common-pin" aria-label="已置顶" />}<strong className="common-entry-amount">{entry.amount}</strong></span>
               </button>
             ))}
             {commonEntries.length === 0 && <p className="common-entry-empty">记几笔后，这里会显示常用组合。</p>}
           </div>
         </div>
         <div className="category-workspace">
-          <div className="category-section-title"><span>一级分类</span></div>
+          <div className="category-section-title section-heading-row"><span>一级分类</span><button type="button" onClick={onOpenCategories}>全部分类 <span aria-hidden="true">›</span></button></div>
           <div ref={categoryGridRef} className="category-grid">
             {roots.map((category) => {
               const selected = categoryId === category.id;
               const hasChildren = categories.some((item) => item.parentId === category.id && !item.isArchived);
               return (
                 <button key={category.id} data-category-id={category.id} type="button" aria-expanded={selected && hasChildren} className={selected ? 'category-chip selected' : 'category-chip'} onClick={() => selectRootCategory(category)}>
-                  <span className="category-chip-label">{category.name}</span><span className={selected && hasChildren ? 'category-chevron expanded' : 'category-chevron'} aria-hidden="true" />
+                  <CategoryIcon categoryName={category.name} type={category.type} size="sm" /><span className="category-chip-label">{category.name}</span><span className={selected && hasChildren ? 'category-chevron expanded' : 'category-chevron'} aria-hidden="true" />
                 </button>
               );
             })}
-            <button type="button" className="category-chip add-category-chip" onClick={() => { setAddingCategory(true); setCategoryId(''); setSubcategoryId(''); setError(''); }}>＋ 增加新分类</button>
             {children.length > 0 && categoryId !== '' && subcategoryPanelTop !== null && (
               <div className="subcategory-panel" style={{ top: subcategoryPanelTop }}>
                 <div className="subcategory-panel-title">二级分类 <span>可选</span></div>
@@ -329,7 +301,6 @@ export function QuickEntry({
               </div>
             )}
           </div>
-          {addingCategory && <div className="quick-category-form"><input autoFocus value={newCategoryName} maxLength={40} placeholder={`新增${type === 'expense' ? '支出' : '收入'}一级分类`} onChange={(event) => setNewCategoryName(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') void createRootCategory(); if (event.key === 'Escape') { setAddingCategory(false); setNewCategoryName(''); } }} /><button type="button" className="primary" disabled={creatingCategory} onClick={() => void createRootCategory()}>{creatingCategory ? '添加中…' : '添加'}</button><button type="button" className="secondary" disabled={creatingCategory} onClick={() => { setAddingCategory(false); setNewCategoryName(''); }}>取消</button></div>}
         </div>
       </div>
       <div className="quick-entry-footer-fields"><label>交易时间<input type="datetime-local" step="1" value={occurredAtLocal} onChange={(event) => setOccurredAtLocal(event.target.value)} /></label><label>添加备注（可选）<input maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} placeholder="记录一下这笔账…" /></label></div>

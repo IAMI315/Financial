@@ -33,7 +33,7 @@ export function HomePage({ onNavigate }: { onNavigate: (page: Page) => void }) {
 
   return (
     <div className="page-grid home-grid">
-      <QuickEntry categories={categories} commonEntries={commonEntries} dailyMustEntries={dailyMustEntries} onCommonEntriesChanged={setCommonEntries} onDailyMustChanged={() => void loadDashboard()} onSaved={() => void loadDashboard()} onCategoryCreated={(category) => setCategories((current) => [...current, category])} />
+      <QuickEntry categories={categories} commonEntries={commonEntries} dailyMustEntries={dailyMustEntries} onCommonEntriesChanged={setCommonEntries} onDailyMustChanged={() => void loadDashboard()} onSaved={() => void loadDashboard()} onOpenCategories={() => onNavigate('categories')} />
       <div className="dashboard-column">
         <section className="summary-grid home-summary-grid">
           <article className="metric home-metric income"><span className="home-metric-icon">↓</span><span>本月收入</span><strong>{money(stats?.incomeFen ?? 0)}</strong><small>本月累计</small></article>
