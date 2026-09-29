@@ -247,72 +247,76 @@ export function QuickEntry({
         <button type="button" className={type === 'income' ? 'active' : ''} onClick={() => switchType('income')}>收入</button>
       </div>
       <div className="money-row"><div className="money-field"><span>¥</span><input value={amount} onChange={(event) => { setAmount(event.target.value); setAmountFromCommon(false); }} onClick={() => { if (amountFromCommon) { setAmount(''); setAmountFromCommon(false); } }} inputMode="decimal" placeholder="0.00" aria-label="金额" /></div><div className="calculator-anchor"><button type="button" className="calculator-trigger" onClick={() => setShowCalculator((value) => !value)} aria-expanded={showCalculator}><svg viewBox="0 0 32 32" aria-hidden="true"><rect x="6" y="4" width="20" height="24" rx="4"/><rect x="10" y="8" width="12" height="5" rx="1"/><path d="M10 18h2M16 18h2M22 18h.01M10 23h2M16 23h2M22 23h.01"/></svg><span>计算器</span></button>{showCalculator && <AmountCalculator initialValue={amount} onClose={() => setShowCalculator(false)} onConfirm={(value) => { setAmount(value); setAmountFromCommon(false); }} />}</div></div>
-      <div className="quick-category-layout">
-        <div className="common-entry-workspace">
-          <div className="category-section-title section-heading-row"><span>最近常用</span><button type="button" onClick={() => setShowAllCommon((value) => !value)}>{showAllCommon ? '收起' : '更多'} <span aria-hidden="true">›</span></button></div>
-          <div className="common-entry-list">
-            {commonEntries.slice(0, showAllCommon ? 8 : 5).map((entry, index) => (
-              <button
-                key={`${entry.type}-${entry.categoryId}-${entry.subcategoryId ?? 'root'}-${index}`}
-                type="button"
-                className={`common-entry-row ${entry.type}${entry.isPinned ? ' pinned' : ''}`}
-                onClick={() => {
-                  if (suppressCommonClickRef.current) {
-                    suppressCommonClickRef.current = false;
-                    return;
-                  }
-                  applyCommonEntry(entry);
-                }}
-                onContextMenu={(event) => handleCommonContextMenu(event, entry)}
-                onPointerDown={(event) => startCommonLongPress(event, entry)}
-                onPointerUp={clearLongPress}
-                onPointerCancel={clearLongPress}
-                onPointerLeave={clearLongPress}
-                title={`${entry.isPinned ? '已置顶 · ' : ''}点击带入；右键或长按管理置顶`}
-              >
-                <CategoryIcon categoryName={entry.categoryName} type={entry.type} size="sm" />
-                <span className="common-entry-name">{entry.categoryName}{entry.subcategoryName ? `-${entry.subcategoryName}` : ''}</span>
-                <span className="common-entry-tail">{entry.isPinned && <i className="common-pin" aria-label="已置顶" />}<strong className="common-entry-amount">{entry.amount}</strong></span>
-              </button>
-            ))}
-            {commonEntries.length === 0 && <p className="common-entry-empty">记几笔后，这里会显示常用组合。</p>}
-          </div>
-        </div>
-        <div className="category-workspace">
-          <div className="category-section-title section-heading-row"><span>一级分类</span><button type="button" onClick={onOpenCategories}>全部分类 <span aria-hidden="true">›</span></button></div>
-          <div ref={categoryGridRef} className="category-grid">
-            {roots.map((category) => {
-              const selected = categoryId === category.id;
-              const hasChildren = categories.some((item) => item.parentId === category.id && !item.isArchived);
-              return (
-                <button key={category.id} data-category-id={category.id} type="button" aria-expanded={selected && hasChildren} className={selected ? 'category-chip selected' : 'category-chip'} onClick={() => selectRootCategory(category)}>
-                  <CategoryIcon categoryName={category.name} type={category.type} size="sm" /><span className="category-chip-label">{category.name}</span><span className={selected && hasChildren ? 'category-chevron expanded' : 'category-chevron'} aria-hidden="true" />
+      <div className="quick-entry-scroll">
+        <div className="quick-category-layout">
+          <div className="common-entry-workspace">
+            <div className="category-section-title section-heading-row"><span>最近常用</span><button type="button" onClick={() => setShowAllCommon((value) => !value)}>{showAllCommon ? '收起' : '更多'} <span aria-hidden="true">›</span></button></div>
+            <div className="common-entry-list">
+              {commonEntries.slice(0, showAllCommon ? 8 : 5).map((entry, index) => (
+                <button
+                  key={`${entry.type}-${entry.categoryId}-${entry.subcategoryId ?? 'root'}-${index}`}
+                  type="button"
+                  className={`common-entry-row ${entry.type}${entry.isPinned ? ' pinned' : ''}`}
+                  onClick={() => {
+                    if (suppressCommonClickRef.current) {
+                      suppressCommonClickRef.current = false;
+                      return;
+                    }
+                    applyCommonEntry(entry);
+                  }}
+                  onContextMenu={(event) => handleCommonContextMenu(event, entry)}
+                  onPointerDown={(event) => startCommonLongPress(event, entry)}
+                  onPointerUp={clearLongPress}
+                  onPointerCancel={clearLongPress}
+                  onPointerLeave={clearLongPress}
+                  title={`${entry.isPinned ? '已置顶 · ' : ''}点击带入；右键或长按管理置顶`}
+                >
+                  <CategoryIcon categoryName={entry.categoryName} type={entry.type} size="sm" />
+                  <span className="common-entry-name">{entry.categoryName}{entry.subcategoryName ? `-${entry.subcategoryName}` : ''}</span>
+                  <span className="common-entry-tail">{entry.isPinned && <i className="common-pin" aria-label="已置顶" />}<strong className="common-entry-amount">{entry.amount}</strong></span>
                 </button>
-              );
-            })}
-            {children.length > 0 && categoryId !== '' && subcategoryPanelTop !== null && (
-              <div className="subcategory-panel" style={{ top: subcategoryPanelTop }}>
-                <div className="subcategory-panel-title">二级分类 <span>可选</span></div>
-                <div className="subcategory-grid">
-                  {children.map((item) => (
-                    <button key={item.id} type="button" className={subcategoryId === item.id ? 'subcategory-chip selected' : 'subcategory-chip'} onClick={() => setSubcategoryId(subcategoryId === item.id ? '' : item.id)}><CategoryIcon categoryName={item.name} type={item.type} size="sm" /><span>{item.name}</span></button>
-                  ))}
+              ))}
+              {commonEntries.length === 0 && <p className="common-entry-empty">记几笔后，这里会显示常用组合。</p>}
+            </div>
+          </div>
+          <div className="category-workspace">
+            <div className="category-section-title section-heading-row"><span>一级分类</span><button type="button" onClick={onOpenCategories}>全部分类 <span aria-hidden="true">›</span></button></div>
+            <div ref={categoryGridRef} className="category-grid">
+              {roots.map((category) => {
+                const selected = categoryId === category.id;
+                const hasChildren = categories.some((item) => item.parentId === category.id && !item.isArchived);
+                return (
+                  <button key={category.id} data-category-id={category.id} type="button" aria-expanded={selected && hasChildren} className={selected ? 'category-chip selected' : 'category-chip'} onClick={() => selectRootCategory(category)}>
+                    <CategoryIcon categoryName={category.name} type={category.type} size="sm" /><span className="category-chip-label">{category.name}</span><span className={selected && hasChildren ? 'category-chevron expanded' : 'category-chevron'} aria-hidden="true" />
+                  </button>
+                );
+              })}
+              {children.length > 0 && categoryId !== '' && subcategoryPanelTop !== null && (
+                <div className="subcategory-panel" style={{ top: subcategoryPanelTop }}>
+                  <div className="subcategory-panel-title">二级分类 <span>可选</span></div>
+                  <div className="subcategory-grid">
+                    {children.map((item) => (
+                      <button key={item.id} type="button" className={subcategoryId === item.id ? 'subcategory-chip selected' : 'subcategory-chip'} onClick={() => setSubcategoryId(subcategoryId === item.id ? '' : item.id)}><CategoryIcon categoryName={item.name} type={item.type} size="sm" /><span>{item.name}</span></button>
+                    ))}
+                  </div>
                 </div>
-              </div>
-            )}
+              )}
+            </div>
           </div>
         </div>
+        <div className="quick-entry-footer-fields"><label>交易时间<input type="datetime-local" step="1" value={occurredAtLocal} onChange={(event) => setOccurredAtLocal(event.target.value)} /></label><label>添加备注（可选）<input maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} placeholder="记录一下这笔账…" /></label></div>
       </div>
-      <div className="quick-entry-footer-fields"><label>交易时间<input type="datetime-local" step="1" value={occurredAtLocal} onChange={(event) => setOccurredAtLocal(event.target.value)} /></label><label>添加备注（可选）<input maxLength={500} value={note} onChange={(event) => setNote(event.target.value)} placeholder="记录一下这笔账…" /></label></div>
       {commonMenu && (
         <div className="common-entry-menu" style={{ left: commonMenu.x, top: commonMenu.y }} onClick={(event) => event.stopPropagation()}>
           <button type="button" onClick={() => void toggleCommonPin(commonMenu.entry)}>{commonMenu.entry.isPinned ? '取消置顶' : '置顶'}</button>
         </div>
       )}
 
-      {error && <div className="notice error">{error}</div>}
-      <button className="primary wide" type="button" onClick={() => void save(duplicatePending)}>{duplicatePending ? '确认仍然保存' : '保存'}</button>
-      {saved && <button type="button" className="success-action" onClick={() => setSaved(false)}>✓ 记账成功 · 继续记一笔</button>}
+      <div className="quick-entry-actions">
+        {error && <div className="notice error">{error}</div>}
+        <button className="primary wide" type="button" onClick={() => void save(duplicatePending)}>{duplicatePending ? '确认仍然保存' : '保存'}</button>
+        {saved && <button type="button" className="success-action" onClick={() => setSaved(false)}>✓ 记账成功 · 继续记一笔</button>}
+      </div>
     </section>
   );
 }

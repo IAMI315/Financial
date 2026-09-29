@@ -103,7 +103,7 @@ h3 { margin: 18px 0 7px; color: var(--muted); font-size: 12px; font-weight: 700;
 .narrow-page { width: min(100%, 680px); margin: auto; }
 .panel { border: 1px solid var(--border); border-radius: 20px; background: var(--panel); padding: 20px; box-shadow: 0 8px 30px rgba(30,45,72,.045); }
 .panel-title { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
-.quick-entry { position: sticky; top: 30px; }
+.quick-entry { position: sticky; top: 30px; max-height: calc(100dvh - 60px); display: flex; flex-direction: column; }
 .quick-entry-panel-title { margin-bottom: 12px; }
 .quick-entry-panel-title h2 { margin: 0 0 4px; color: #172b4d; font-size: 21px; font-weight: 850; }
 .quick-entry-panel-title > div > span { color: var(--muted); font-size: 12px; }
@@ -203,6 +203,9 @@ h3 { margin: 18px 0 7px; color: var(--muted); font-size: 12px; font-weight: 700;
 .quick-entry-footer-fields { display: grid; grid-template-columns: 1fr 1.35fr; gap: 12px; align-items: end; }
 .quick-entry-footer-fields label { margin: 0; }
 .quick-entry-footer-fields input { min-height: 40px; }
+.quick-entry-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; scrollbar-gutter: stable; }
+.quick-entry-actions { position: relative; z-index: 12; flex: 0 0 auto; margin-top: 12px; border-top: 1px solid #edf0f5; background: var(--panel); padding-top: 12px; }
+.quick-entry-actions .notice { margin: 0 0 10px; }
 
 details { margin: 12px 0; }
 summary { color: #647087; font-size: 13px; cursor: pointer; }
@@ -400,7 +403,7 @@ details textarea { margin-top: 8px; }
   .bottom-nav button.active { color: #2c60c5; }
   .bottom-nav small { font-size: 9px; }
   .page-grid, .home-grid { grid-template-columns: 1fr; gap: 12px; }
-  .quick-entry { width: 100%; position: static; }
+  .quick-entry { width: 100%; position: static; max-height: calc(100dvh - 148px - env(safe-area-inset-bottom)); }
   .dashboard-column { width: 100%; gap: 12px; }
   .home-summary-grid { max-width: 100%; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(155px, min(72vw, 230px)); overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scrollbar-width: none; padding-bottom: 3px; }
   .home-summary-grid::-webkit-scrollbar, .daily-must-cards::-webkit-scrollbar, .trend-chart-wrap::-webkit-scrollbar { display: none; }
