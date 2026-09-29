@@ -407,8 +407,9 @@ details textarea { margin-top: 8px; }
   .bottom-nav small { font-size: 9px; }
   .page-grid, .home-grid { grid-template-columns: 1fr; gap: 12px; }
   .quick-entry { width: 100%; position: static; max-height: none; }
-  .quick-entry-scroll { order: 0; overflow: visible; overscroll-behavior: auto; padding: 0 0 76px; scrollbar-gutter: auto; }
-  .quick-entry-actions { position: sticky; z-index: 24; order: 0; top: calc(100dvh - 132px - env(safe-area-inset-bottom)); bottom: auto; margin: 8px -4px 12px; border: 1px solid #e2e8f2; border-radius: 14px; background: rgba(255,255,255,.97); padding: 10px; box-shadow: 0 -8px 24px rgba(30,45,72,.10); backdrop-filter: blur(14px); }
+  .quick-entry { padding-bottom: 82px; }
+  .quick-entry-scroll { order: 0; overflow: visible; overscroll-behavior: auto; padding: 0; scrollbar-gutter: auto; }
+  .quick-entry-actions { position: fixed; z-index: 29; order: 0; left: 12px; right: 12px; bottom: calc(64px + env(safe-area-inset-bottom)); margin: 0; border: 1px solid #e2e8f2; border-radius: 14px; background: rgba(255,255,255,.97); padding: 10px; box-shadow: 0 -8px 24px rgba(30,45,72,.10); backdrop-filter: blur(14px); }
   .quick-entry-actions .primary { min-height: 46px; }
   .dashboard-column { width: 100%; gap: 12px; }
   .home-summary-grid { max-width: 100%; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(155px, min(72vw, 230px)); overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scrollbar-width: none; padding-bottom: 3px; }
@@ -422,8 +423,8 @@ details textarea { margin-top: 8px; }
   .daily-must-heading h3, .daily-must-heading span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .daily-must-header-actions { min-width: max-content; gap: 6px; }
   .daily-must-progress { width: 100%; margin: 10px 0 12px; }
-  .daily-must-cards { max-width: 100%; overflow-x: auto; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: min(230px, calc(100vw - 56px)); gap: 10px; padding-bottom: 3px; scroll-snap-type: x proximity; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
-  .daily-must-card { scroll-snap-align: start; }
+  .daily-must-cards { max-width: 100%; overflow-x: auto; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: min(230px, calc(100vw - 56px)); gap: 10px; padding-bottom: 3px; overscroll-behavior-x: contain; scrollbar-width: none; -webkit-overflow-scrolling: touch; }
+  .daily-must-card { scroll-snap-align: none; }
   .daily-must-edit { opacity: 1; }
   .calculator-popover { position: fixed; z-index: 80; top: auto; right: 12px; bottom: calc(76px + env(safe-area-inset-bottom)); left: 12px; width: auto; max-width: 420px; max-height: calc(100dvh - 110px - env(safe-area-inset-bottom)); margin-left: auto; overflow-y: auto; }
   .home-recent-table { min-width: 0; }
