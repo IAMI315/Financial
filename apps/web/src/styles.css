@@ -104,6 +104,7 @@ h3 { margin: 18px 0 7px; color: var(--muted); font-size: 12px; font-weight: 700;
 .panel { border: 1px solid var(--border); border-radius: 20px; background: var(--panel); padding: 20px; box-shadow: 0 8px 30px rgba(30,45,72,.045); }
 .panel-title { display: flex; justify-content: space-between; align-items: flex-start; gap: 14px; margin-bottom: 16px; }
 .quick-entry { position: sticky; top: 30px; max-height: calc(100dvh - 60px); display: flex; flex-direction: column; }
+.quick-entry > .quick-entry-panel-title, .quick-entry > .daily-must-headline, .quick-entry > .segmented, .quick-entry > .money-row, .quick-entry > .quick-entry-actions { flex: 0 0 auto; }
 .quick-entry-panel-title { margin-bottom: 12px; }
 .quick-entry-panel-title h2 { margin: 0 0 4px; color: #172b4d; font-size: 21px; font-weight: 850; }
 .quick-entry-panel-title > div > span { color: var(--muted); font-size: 12px; }
@@ -204,6 +205,8 @@ h3 { margin: 18px 0 7px; color: var(--muted); font-size: 12px; font-weight: 700;
 .quick-entry-footer-fields label { margin: 0; }
 .quick-entry-footer-fields input { min-height: 40px; }
 .quick-entry-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding-right: 4px; scrollbar-gutter: stable; }
+.quick-entry-scroll { order: 1; }
+.quick-entry-actions { order: 2; }
 .quick-entry-actions { position: relative; z-index: 12; flex: 0 0 auto; margin-top: 12px; border-top: 1px solid #edf0f5; background: var(--panel); padding-top: 12px; }
 .quick-entry-actions .notice { margin: 0 0 10px; }
 
@@ -387,7 +390,7 @@ details textarea { margin-top: 8px; }
 @media (max-width: 1260px) and (min-width: 901px) {
   .home-grid { grid-template-columns: 1fr; }
   .quick-entry, .dashboard-column { width: min(820px, 100%); margin-inline: auto; }
-  .quick-entry { position: static; }
+  .quick-entry { position: static; max-height: none; }
 }
 
 @media (max-width: 900px) {
@@ -403,7 +406,10 @@ details textarea { margin-top: 8px; }
   .bottom-nav button.active { color: #2c60c5; }
   .bottom-nav small { font-size: 9px; }
   .page-grid, .home-grid { grid-template-columns: 1fr; gap: 12px; }
-  .quick-entry { width: 100%; position: static; max-height: calc(100dvh - 148px - env(safe-area-inset-bottom)); }
+  .quick-entry { width: 100%; position: static; max-height: none; }
+  .quick-entry-scroll { order: 0; overflow: visible; overscroll-behavior: auto; padding: 0 0 76px; scrollbar-gutter: auto; }
+  .quick-entry-actions { position: sticky; z-index: 24; order: 0; top: calc(100dvh - 132px - env(safe-area-inset-bottom)); bottom: auto; margin: 8px -4px 12px; border: 1px solid #e2e8f2; border-radius: 14px; background: rgba(255,255,255,.97); padding: 10px; box-shadow: 0 -8px 24px rgba(30,45,72,.10); backdrop-filter: blur(14px); }
+  .quick-entry-actions .primary { min-height: 46px; }
   .dashboard-column { width: 100%; gap: 12px; }
   .home-summary-grid { max-width: 100%; grid-template-columns: none; grid-auto-flow: column; grid-auto-columns: minmax(155px, min(72vw, 230px)); overflow-x: auto; overscroll-behavior-x: contain; scroll-snap-type: x proximity; scrollbar-width: none; padding-bottom: 3px; }
   .home-summary-grid::-webkit-scrollbar, .daily-must-cards::-webkit-scrollbar, .trend-chart-wrap::-webkit-scrollbar { display: none; }
@@ -443,11 +449,14 @@ details textarea { margin-top: 8px; }
   .daily-must-heading span { font-size: 10px; }
   .daily-must-progress-meta strong { font-size: 15px; }
   .daily-must-progress-meta span { display: none; }
-  .daily-must-card { min-height: 104px; grid-template-columns: auto auto minmax(0, 1fr); gap: 8px; padding: 11px 10px; }
-  .daily-must-glyph { width: 42px; height: 42px; }
-  .daily-must-glyph svg { width: 25px; height: 25px; }
-  .daily-must-copy strong { font-size: 14px; }
-  .daily-must-copy b { font-size: 14px; }
+  .daily-must-cards { grid-auto-columns: min(210px, calc(100vw - 56px)); gap: 8px; }
+  .daily-must-card { min-height: 88px; grid-template-columns: auto auto minmax(0, 1fr); gap: 7px; padding: 9px 8px; }
+  .daily-must-check { width: 20px; height: 20px; }
+  .daily-must-glyph { width: 38px; height: 38px; }
+  .daily-must-glyph svg { width: 23px; height: 23px; }
+  .daily-must-copy strong { font-size: 13px; }
+  .daily-must-copy span { font-size: 9px; }
+  .daily-must-copy b { font-size: 13px; }
   .summary-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; }
   .home-summary-grid { grid-auto-columns: minmax(150px, min(72vw, 220px)); scroll-padding-inline: 2px; }
   .home-metric { scroll-snap-align: start; }
